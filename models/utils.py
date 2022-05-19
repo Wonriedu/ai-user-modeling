@@ -10,7 +10,7 @@ else:
     from torch import FloatTensor
 
 
-def match_seq_len(q_seqs, r_seqs, seq_len, pad_val=-1):
+def match_seq_len(c_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
     '''
         Args:
             q_seqs: the question(KC) sequences with the size of \
@@ -29,22 +29,32 @@ def match_seq_len(q_seqs, r_seqs, seq_len, pad_val=-1):
             proc_r_seqs: the processed r_seqs with the size of \
                 [batch_size, seq_len + 1]
     '''
-    proc_q_seqs = []
+    proc_c_seqs = []
+    proc_d_seqs = []
     proc_r_seqs = []
 
-    for q_seq, r_seq in zip(q_seqs, r_seqs):
+    for c_seq, d_seq, r_seq in zip(c_seqs, d_seqs, r_seqs):
         i = 0
-        while i + seq_len + 1 < len(q_seq):
-            proc_q_seqs.append(q_seq[i:i + seq_len + 1])
+        while i + seq_len + 1 < len(c_seq):
+            proc_c_seqs.append(c_seq[i:i + seq_len + 1])
+            proc_d_seqs.append(d_seq[i:i + seq_len + 1])
             proc_r_seqs.append(r_seq[i:i + seq_len + 1])
 
             i += seq_len + 1
 
-        proc_q_seqs.append(
+        proc_c_seqs.append(
             np.concatenate(
                 [
-                    q_seq[i:],
-                    np.array([pad_val] * (i + seq_len + 1 - len(q_seq)))
+                    c_seq[i:],
+                    np.array([pad_val] * (i + seq_len + 1 - len(c_seq)))
+                ]
+            )
+        )
+        proc_d_seqs.append(
+            np.concatenate(
+                [
+                    d_seq[i:],
+                    np.array([pad_val] * (i + seq_len + 1 - len(c_seq)))
                 ]
             )
         )
@@ -52,12 +62,12 @@ def match_seq_len(q_seqs, r_seqs, seq_len, pad_val=-1):
             np.concatenate(
                 [
                     r_seq[i:],
-                    np.array([pad_val] * (i + seq_len + 1 - len(q_seq)))
+                    np.array([pad_val] * (i + seq_len + 1 - len(c_seq)))
                 ]
             )
         )
 
-    return proc_q_seqs, proc_r_seqs
+    return proc_c_seqs, proc_d_seqs, proc_r_seqs
 
 
 def collate_fn(batch, pad_val=-1):
