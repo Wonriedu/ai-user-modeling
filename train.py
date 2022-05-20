@@ -18,6 +18,7 @@ def main():
         os.mkdir(ckpt_path)
 
     batch_size = 256
+    num_epochs = 100
     train_ratio = 0.9
 
     seq_len = 100
@@ -40,6 +41,15 @@ def main():
         dataset, [train_size, test_size]
     )
 
+    if os.path.exists(os.path.join(dataset.dataset_dir, "indices.pkl")):
+        with open(os.path.join(dataset.dataset_dir, "indices.pkl"), "rb") as f:
+            indices = pickle.load(f)
+        train_dataset.indices = indices[0]
+        test_dataset.indices = indices[1]
+    else:
+        with open(os.path.join(dataset.dataset_dir, "indices.pkl"), "wb") as f:
+            pickle.dump((train_dataset.indices, test_dataset.indices), f)
+
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True,
         collate_fn=collate_fn
@@ -50,6 +60,10 @@ def main():
     )
 
     opt = Adam(model.parameters())
+
+    aucs, loss_means = model.train_model(
+        train_loader, test_loader, num_epochs, opt, ckpt_path
+    )
 
 
 if __name__ == "__main__":
