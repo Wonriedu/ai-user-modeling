@@ -22,7 +22,7 @@ def main():
 
     seq_len = 100
 
-    dim_v = 50
+    dim_v = 20
 
     dataset = PuljaDataLoader(seq_len)
 

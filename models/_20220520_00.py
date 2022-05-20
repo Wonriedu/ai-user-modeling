@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from torch.nn import Module, Embedding, Parameter, GRU, Sequential, Linear, \
-    ReLU
+    ReLU, Dropout
 from torch.nn.functional import one_hot
 
 
@@ -27,17 +27,17 @@ class UserModel(Module):
         self.linear_1 = Sequential(
             Linear(self.dim_v, self.dim_v),
             ReLU(),
-            Linear(self.dim_v, self.dim_v),
-            ReLU(),
+            Dropout(),
             Linear(self.dim_v, 1),
+            Dropout(),
         )
 
         self.linear_2 = Sequential(
             Linear(self.dim_v * 3, self.dim_v),
             ReLU(),
-            Linear(self.dim_v, self.dim_v),
-            ReLU(),
+            Dropout(),
             Linear(self.dim_v, 1),
+            Dropout(),
         )
 
     def forward(
@@ -194,6 +194,11 @@ class UserModel(Module):
                     test_loss_mean = (
                         (rshft_hat_seq - rshft_seq) ** 2
                     ).mean().detach().cpu().numpy()
+
+                    print(
+                        "Epochs: {},  Train Loss Mean: {},  Test Loss Mean: {}"
+                        .format(i, train_loss_mean, test_loss_mean)
+                    )
 
                     if test_loss_mean < min_test_loss_mean:
                         torch.save(
