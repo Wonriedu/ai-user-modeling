@@ -1,5 +1,4 @@
 import os
-import json
 import pickle
 
 import torch
@@ -61,9 +60,14 @@ def main():
 
     opt = Adam(model.parameters())
 
-    aucs, loss_means = model.train_model(
+    train_loss_means, test_loss_means = model.train_model(
         train_loader, test_loader, num_epochs, opt, ckpt_path
     )
+
+    with open(os.path.join(ckpt_path, "train_loss_means.pkl"), "wb") as f:
+        pickle.dump(train_loss_means, f)
+    with open(os.path.join(ckpt_path, "test_loss_means.pkl"), "wb") as f:
+        pickle.dump(test_loss_means, f)
 
 
 if __name__ == "__main__":

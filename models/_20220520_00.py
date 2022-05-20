@@ -1,6 +1,10 @@
+import os
+
+import numpy as np
 import torch
 
-from torch.nn import Module, Embedding, Parameter, GRU, Sequential, Linear, ReLU
+from torch.nn import Module, Embedding, Parameter, GRU, Sequential, Linear, \
+    ReLU
 from torch.nn.functional import one_hot
 
 
@@ -36,11 +40,15 @@ class UserModel(Module):
             Linear(self.dim_v, 1),
         )
 
-    def forward(self, c_seq, d_seq, r_seq, h_0=None, C_0=None):
+    def forward(
+        self, c_seq, cshft_seq, d_seq, dshft_seq, r_seq, h_0=None, C_0=None
+    ):
         '''
             Args:
                 c_seq: [batch_size, seq_len]
+                cshft_seq: [batch_size, seq_len]
                 d_seq: [batch_size, seq_len]
+                dshft_seq: [batch_size, seq_len]
                 r_seq: [batch_size, seq_len]
                 h_0: [batch_size, dim_v]
                 C_0: [batch_size, num_c, 1]
@@ -76,11 +84,14 @@ class UserModel(Module):
 
         # c_one_hot_seq: [batch_size, seq_len, num_c]
         c_one_hot_seq = one_hot(c_seq, self.num_c).float()
+        cshft_one_hot_seq = one_hot(cshft_seq, self.num_c).float()
 
         beta_seq = []
+        beta_shft_seq = []
 
-        for c_one_hot, v_d, v_r in zip(
+        for c_one_hot, cshft_one_hot, v_d, v_r in zip(
             c_one_hot_seq.permute(1, 0, 2),
+            cshft_one_hot_seq.permute(1, 0, 2),
             v_d_seq.permute(1, 0, 2),
             v_r_seq.permute(1, 0, 2)
         ):
@@ -103,18 +114,97 @@ class UserModel(Module):
 
             # beta: [batch_size]
             beta = torch.bmm(c_one_hot.unsqueeze(1), C).squeeze()
+            beta_shft = torch.bmm(cshft_one_hot.unsqueeze(1), C).squeeze()
+
             beta_seq.append(beta)
+            beta_shft_seq.append(beta_shft)
 
         # C_seq: [batch_size, seq_len, num_c, 1]
         C_seq = torch.stack(C_seq, dim=1)
 
         # beta_seq: [batch_size, seq_len]
         beta_seq = torch.stack(beta_seq, dim=1)
+        beta_shft_seq = torch.stack(beta_shft_seq, dim=1)
 
         # gamma_seq: [batch_size, seq_len]
         gamma_seq = self.D1(d_seq).squeeze()
+        gamma_shft_seq = self.D1(dshft_seq).squeeze()
 
-        return alpha_seq, beta_seq, gamma_seq, h_seq, C_seq
+        return alpha_seq, beta_seq, beta_shft_seq, \
+            gamma_seq, gamma_shft_seq, h_seq, C_seq
 
-    def train(self):
-        pass
+    def train_model(
+        self, train_loader, test_loader, num_epochs, opt, ckpt_path
+    ):
+        train_loss_means = []
+        test_loss_means = []
+
+        min_test_loss_mean = np.inf
+
+        for i in range(1, num_epochs + 1):
+            train_loss_mean = []
+
+            for data in train_loader:
+                c_seq, d_seq, r_seq, \
+                    cshft_seq, dshft_seq, rshft_seq, m_seq = data
+
+                self.train()
+
+                alpha_seq, beta_seq, beta_shft_seq, \
+                    gamma_seq, gamma_shft_seq, h_seq, C_seq = \
+                    self(c_seq, cshft_seq, d_seq, dshft_seq, r_seq)
+
+                rshft_hat_seq = torch.sigmoid(alpha_seq - gamma_shft_seq)
+                rshft_hat_seq = torch.masked_select(rshft_hat_seq, m_seq)
+                r_hat_seq = torch.sigmoid(alpha_seq + beta_seq - gamma_seq)
+                r_hat_seq = torch.masked_select(r_hat_seq, m_seq)
+
+                rshft_seq = torch.masked_select(rshft_seq, m_seq)
+                r_seq = torch.masked_select(r_seq, m_seq)
+
+                opt.zero_grad()
+                loss = (
+                    (rshft_hat_seq - rshft_seq) ** 2 + (r_hat_seq - r_seq) ** 2
+                ).mean()
+                loss.backward()
+                opt.step()
+
+                train_loss_mean.append(loss.detach().cpu().numpy())
+
+            with torch.no_grad():
+                for data in test_loader:
+                    c_seq, d_seq, r_seq, \
+                        cshft_seq, dshft_seq, rshft_seq, m_seq = data
+
+                    self.eval()
+
+                    alpha_seq, beta_seq, beta_shft_seq, \
+                        gamma_seq, gamma_shft_seq, h_seq, C_seq = \
+                        self(c_seq, cshft_seq, d_seq, dshft_seq, r_seq)
+
+                    # 추론 과정에서는 rshft_hat_seq 계산 방식이 훈련 과정과 다름
+                    rshft_hat_seq = torch.sigmoid(
+                        alpha_seq + beta_shft_seq - gamma_shft_seq
+                    )
+                    rshft_hat_seq = torch.masked_select(rshft_hat_seq, m_seq)
+
+                    rshft_seq = torch.masked_select(rshft_seq, m_seq)
+
+                    train_loss_mean = np.mean(train_loss_mean)
+                    test_loss_mean = (
+                        (rshft_hat_seq - rshft_seq) ** 2
+                    ).mean().detach().cpu().numpy()
+
+                    if test_loss_mean < min_test_loss_mean:
+                        torch.save(
+                            self.state_dict(),
+                            os.path.join(
+                                ckpt_path, "model.ckpt"
+                            )
+                        )
+                        min_test_loss_mean = test_loss_mean
+
+                    train_loss_means.append(train_loss_mean)
+                    test_loss_means.append(test_loss_mean)
+
+        return train_loss_means, test_loss_means
