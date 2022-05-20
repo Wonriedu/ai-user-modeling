@@ -17,7 +17,7 @@ def main():
         os.mkdir(ckpt_path)
 
     batch_size = 256
-    num_epochs = 100
+    num_epochs = 1000
     train_ratio = 0.9
 
     seq_len = 100
