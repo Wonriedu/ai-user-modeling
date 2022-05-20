@@ -5,12 +5,14 @@ import pandas as pd
 
 from torch.utils.data import Dataset
 
+from models.utils import match_seq_len
+
 
 DATASET_DIR = "tables"
 
 
 class PuljaDataLoader(Dataset):
-    def __init__(self, dataset_dir=DATASET_DIR) -> None:
+    def __init__(self, seq_len, dataset_dir=DATASET_DIR) -> None:
         super().__init__()
 
         self.dataset_dir = dataset_dir
@@ -86,6 +88,11 @@ class PuljaDataLoader(Dataset):
             self.c_seqs.append(c_seq)
             self.d_seqs.append(d_seq)
             self.r_seqs.append(r_seq)
+
+        if seq_len:
+            self.c_seqs, self.d_seqs, self.r_seqs = match_seq_len(
+                self.c_seqs, self.d_seqs, self.r_seqs
+            )
 
         self.len = len(self.r_seqs)
 
