@@ -4,10 +4,10 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 
 if torch.cuda.is_available():
-    from torch.cuda import FloatTensor
+    from torch.cuda import FloatTensor, LongTensor
     torch.set_default_tensor_type(torch.cuda.FloatTensor)
 else:
-    from torch import FloatTensor
+    from torch import FloatTensor, LongTensor
 
 
 def match_seq_len(c_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
@@ -86,11 +86,11 @@ def collate_fn(batch, pad_val=-1):
     rshft_seqs = []
 
     for c_seq, d_seq, r_seq in batch:
-        c_seqs.append(FloatTensor(c_seq[:-1]))
-        d_seqs.append(FloatTensor(d_seq[:-1]))
+        c_seqs.append(LongTensor(c_seq[:-1]))
+        d_seqs.append(LongTensor(d_seq[:-1]))
         r_seqs.append(FloatTensor(r_seq[:-1]))
-        cshft_seqs.append(FloatTensor(c_seq[1:]))
-        dshft_seqs.append(FloatTensor(d_seq[1:]))
+        cshft_seqs.append(LongTensor(c_seq[1:]))
+        dshft_seqs.append(LongTensor(d_seq[1:]))
         rshft_seqs.append(FloatTensor(r_seq[1:]))
 
     c_seqs = pad_sequence(

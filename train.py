@@ -18,6 +18,7 @@ def main():
 
     batch_size = 256
     seq_len = 100
+    train_ratio = 0.9
 
     dataset = PuljaDataLoader(seq_len)
 
