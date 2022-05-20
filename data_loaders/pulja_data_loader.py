@@ -91,7 +91,7 @@ class PuljaDataLoader(Dataset):
 
         if seq_len:
             self.c_seqs, self.d_seqs, self.r_seqs = match_seq_len(
-                self.c_seqs, self.d_seqs, self.r_seqs
+                self.c_seqs, self.d_seqs, self.r_seqs, seq_len
             )
 
         self.len = len(self.r_seqs)
