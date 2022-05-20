@@ -22,17 +22,17 @@ class UserModel(Module):
         self.gru = GRU(self.dim_v * 2, self.dim_v, batch_first=True)
         self.linear_1 = Sequential(
             Linear(self.dim_v, self.dim_v),
-            ReLU,
+            ReLU(),
             Linear(self.dim_v, self.dim_v),
-            ReLU,
+            ReLU(),
             Linear(self.dim_v, 1),
         )
 
         self.linear_2 = Sequential(
             Linear(self.dim_v * 3, self.dim_v),
-            ReLU,
+            ReLU(),
             Linear(self.dim_v, self.dim_v),
-            ReLU,
+            ReLU(),
             Linear(self.dim_v, 1),
         )
 
@@ -44,6 +44,13 @@ class UserModel(Module):
                 r_seq: [batch_size, seq_len]
                 h_0: [batch_size, dim_v]
                 C_0: [batch_size, num_c, 1]
+
+            Returns:
+                alpha_seq: [batch_size, seq_len]
+                beta_seq: [batch_size, seq_len]
+                gamma_seq: [batch_size, seq_len]
+                h_seq: [batch_size, seq_len, dim_v]
+                C_seq: [batch_size, seq_len, num_c, 1]
         '''
         batch_size = c_seq.shape[0]
 
@@ -53,22 +60,22 @@ class UserModel(Module):
 
         # h_seq: [batch_size, seq_len, dim_v]
         if h_0:
-            h_seq = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1), h_0)
+            h_seq, _ = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1), h_0)
         else:
-            h_seq = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1))
+            h_seq, _ = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1))
 
         # alpha_seq: [batch_size, seq_len]
         alpha_seq = self.linear_1(h_seq).squeeze()
 
         # C: [batch_size, num_c, 1]
         if C_0:
-            C = C_0
+            C = torch.clone(C_0)
         else:
             C = torch.zeros([batch_size, self.num_c, 1])
         C_seq = []
 
         # c_one_hot_seq: [batch_size, seq_len, num_c]
-        c_one_hot_seq = one_hot(c_seq, self.num_c)
+        c_one_hot_seq = one_hot(c_seq, self.num_c).float()
 
         beta_seq = []
 
@@ -90,7 +97,7 @@ class UserModel(Module):
             new_c = self.linear_2(torch.cat([v_beta_prev, v_d, v_r], dim=-1))
 
             C = C * (1 - c_one_hot.unsqueeze(-1)) + \
-                new_c * c_one_hot.unsqueeze(-1)
+                new_c.unsqueeze(1) * c_one_hot.unsqueeze(-1)
 
             C_seq.append(C)
 
