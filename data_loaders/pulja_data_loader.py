@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -8,24 +9,30 @@ from torch.utils.data import Dataset
 from models.utils import match_seq_len
 
 
-DATASET_DIR = "tables"
+DATASET_DIR = "datasets"
+TABLE_DIR = "tables"
 
 
 class PuljaDataLoader(Dataset):
-    def __init__(self, seq_len, dataset_dir=DATASET_DIR) -> None:
+    def __init__(
+        self, seq_len, dataset_dir=DATASET_DIR, table_dir=TABLE_DIR
+    ) -> None:
         super().__init__()
 
+        self.seq_len = seq_len
         self.dataset_dir = dataset_dir
+        self.table_dir = table_dir
+
         self.tb_user_curriculum_lecture_unit_solve = pd.read_csv(
             os.path.join(
-                self.dataset_dir, "tb_user_curriculum_lecture_unit_solve.csv"
+                self.table_dir, "tb_user_curriculum_lecture_unit_solve.csv"
             )
         )
         self.tb_problems = pd.read_csv(
-            os.path.join(self.dataset_dir, "tb_problems.csv")
+            os.path.join(self.table_dir, "tb_problems.csv")
         )
         self.tb_curriculum_unit = pd.read_csv(
-            os.path.join(self.dataset_dir, "tb_curriculum_unit.csv")
+            os.path.join(self.table_dir, "tb_curriculum_unit.csv")
         )
 
         # 3등급 커리큘럼 예상 풀이시간 기준으로 작성
@@ -64,6 +71,30 @@ class PuljaDataLoader(Dataset):
 
         self.num_d = self.d_list.shape[0]
 
+        if os.path.exists(
+            os.path.join(self.dataset_dir, "dataset.pkl")
+        ):
+            with open(
+                os.path.join(self.dataset_dir, "dataset.pkl"), "rb"
+            ) as f:
+                self.c_seqs, self.d_seqs, self.r_seqs = pickle.load(f)
+        else:
+            self.preprocess()
+
+            with open(
+                os.path.join(self.dataset_dir, "dataset.pkl"), "wb"
+            ) as f:
+                pickle.dump((self.c_seqs, self.d_seqs, self.r_seqs), f)
+
+        self.len = len(self.r_seqs)
+
+    def __getitem__(self, idx):
+        return self.c_seqs[idx], self.d_seqs[idx], self.r_seqs[idx]
+
+    def __len__(self):
+        return self.len
+
+    def preprocess(self):
         self.c_seqs = []
         self.d_seqs = []
         self.r_seqs = []
@@ -91,18 +122,10 @@ class PuljaDataLoader(Dataset):
             self.d_seqs.append(d_seq)
             self.r_seqs.append(r_seq)
 
-        if seq_len:
+        if self.seq_len:
             self.c_seqs, self.d_seqs, self.r_seqs = match_seq_len(
-                self.c_seqs, self.d_seqs, self.r_seqs, seq_len
+                self.c_seqs, self.d_seqs, self.r_seqs, self.seq_len
             )
-
-        self.len = len(self.r_seqs)
-
-    def __getitem__(self, idx):
-        return self.c_seqs[idx], self.d_seqs[idx], self.r_seqs[idx]
-
-    def __len__(self):
-        return self.len
 
     def get_response(self, r, TR):
         return r * \
