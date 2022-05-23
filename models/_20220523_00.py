@@ -9,13 +9,15 @@ from torch.nn.functional import one_hot
 
 
 class UserModel(Module):
-    def __init__(self, num_c, num_d, dim_v):
+    def __init__(self, num_c, num_d, dim_v, window_size=10):
         super().__init__()
 
         self.num_c = num_c
         self.num_d = num_d
 
         self.dim_v = dim_v
+
+        self.window_size = window_size
 
         self.D1 = Embedding(self.num_d, 1)
         self.D2 = Embedding(self.num_d, self.dim_v)
@@ -41,22 +43,18 @@ class UserModel(Module):
         )
 
     def forward(
-        self, c_seq, cshft_seq, d_seq, dshft_seq, r_seq, h_0=None, C_0=None
+        self, c_seq, d_seq, r_seq, h_0=None, C_0=None,
     ):
         '''
             Args:
                 c_seq: [batch_size, seq_len]
-                cshft_seq: [batch_size, seq_len]
                 d_seq: [batch_size, seq_len]
-                dshft_seq: [batch_size, seq_len]
                 r_seq: [batch_size, seq_len]
                 h_0: [batch_size, dim_v]
                 C_0: [batch_size, num_c, 1]
 
             Returns:
                 alpha_seq: [batch_size, seq_len]
-                beta_seq: [batch_size, seq_len]
-                gamma_seq: [batch_size, seq_len]
                 h_seq: [batch_size, seq_len, dim_v]
                 C_seq: [batch_size, seq_len, num_c, 1]
         '''
@@ -84,14 +82,9 @@ class UserModel(Module):
 
         # c_one_hot_seq: [batch_size, seq_len, num_c]
         c_one_hot_seq = one_hot(c_seq, self.num_c).float()
-        cshft_one_hot_seq = one_hot(cshft_seq, self.num_c).float()
 
-        beta_seq = []
-        beta_shft_seq = []
-
-        for c_one_hot, cshft_one_hot, v_d, v_r in zip(
+        for c_one_hot, v_d, v_r in zip(
             c_one_hot_seq.permute(1, 0, 2),
-            cshft_one_hot_seq.permute(1, 0, 2),
             v_d_seq.permute(1, 0, 2),
             v_r_seq.permute(1, 0, 2)
         ):
@@ -114,30 +107,10 @@ class UserModel(Module):
 
             C_seq.append(C)
 
-            # beta: [batch_size]
-            beta = torch.bmm(c_one_hot.unsqueeze(1), C).squeeze()
-            beta_shft = torch.bmm(cshft_one_hot.unsqueeze(1), C).squeeze()
-
-            beta_seq.append(beta)
-            beta_shft_seq.append(beta_shft)
-
         # C_seq: [batch_size, seq_len, num_c, 1]
         C_seq = torch.stack(C_seq, dim=1)
 
-        # beta_seq: [batch_size, seq_len]
-        if batch_size == 1:
-            beta_seq = torch.stack(beta_seq, dim=0).unsqueeze(0)
-            beta_shft_seq = torch.stack(beta_shft_seq, dim=0).unsqueeze(0)
-        else:
-            beta_seq = torch.stack(beta_seq, dim=1)
-            beta_shft_seq = torch.stack(beta_shft_seq, dim=1)
-
-        # gamma_seq: [batch_size, seq_len]
-        gamma_seq = self.D1(d_seq).squeeze()
-        gamma_shft_seq = self.D1(dshft_seq).squeeze()
-
-        return alpha_seq, beta_seq, beta_shft_seq, \
-            gamma_seq, gamma_shft_seq, h_seq, C_seq
+        return alpha_seq, h_seq, C_seq
 
     def train_model(
         self, train_loader, test_loader, num_epochs, opt, ckpt_path
@@ -154,35 +127,104 @@ class UserModel(Module):
                 c_seq, d_seq, r_seq, \
                     cshft_seq, dshft_seq, rshft_seq, m_seq = data
 
+                batch_size = c_seq.shape[0]
+                seq_len = c_seq.shape[1]
+
+                # rshft_seq: [batch_size, seq_len]
+                # rshft_seq_window: [batch_size * num_windows, window_size]
+                rshft_seq_window = torch.cat(
+                    [
+                        rshft_seq[:, j:j + self.window_size]
+                        for j in range(
+                            rshft_seq.shape[1] - self.window_size + 1
+                        )
+                    ],
+                    dim=0
+                )
+                # m_seq: [batch_size, seq_len]
+                # m_seq_window: [batch_size * num_windows, window_size]
+                m_seq_window = torch.cat(
+                    [
+                        m_seq[:, j:j + self.window_size]
+                        for j in range(
+                            m_seq.shape[1] - self.window_size + 1
+                        )
+                    ],
+                    dim=0
+                )
+
                 self.train()
 
-                alpha_seq, beta_seq, beta_shft_seq, \
-                    gamma_seq, gamma_shft_seq, h_seq, C_seq = \
-                    self(c_seq, cshft_seq, d_seq, dshft_seq, r_seq)
+                alpha_seq, h_seq, C_seq = \
+                    self(c_seq, d_seq, r_seq)
 
-                rshft_hat_seq = torch.sigmoid(
-                    alpha_seq + beta_shft_seq - gamma_shft_seq
+                # alpha_seq: [batch_size, seq_len]
+                # alpha_seq_window: [batch_size * num_windows, 1]
+                alpha_seq_window = torch.cat(
+                    [
+                        alpha_seq[:, j:j + 1]
+                        for j in range(
+                            alpha_seq.shape[1] - self.window_size + 1
+                        )
+                    ],
+                    dim=0
                 )
-                rshft_hat_seq = torch.masked_select(rshft_hat_seq, m_seq)
-                r_hat_seq = torch.sigmoid(
-                    alpha_seq - gamma_seq
-                )
-                r_hat_seq = torch.masked_select(r_hat_seq, m_seq)
 
-                rshft_seq = torch.masked_select(rshft_seq, m_seq)
-                r_seq = torch.masked_select(r_seq, m_seq)
+                # cshft_one_hot_seq: [batch_size, seq_len, num_c]
+                cshft_one_hot_seq = one_hot(cshft_seq, self.num_c).float()
+                cshft_one_hot_seq = torch.reshape(
+                    cshft_one_hot_seq,
+                    shape=[
+                        -1,
+                        cshft_one_hot_seq.shape[1],
+                        cshft_one_hot_seq.shape[2]
+                    ]
+                ).unsqueeze(-2)
 
-                alpha_seq_next = torch.masked_select(
-                    alpha_seq[:, 1:], m_seq[:, 1:]
+                # beta_shft_seq: [batch_size, seq_len]
+                # beta_shft_seq_window: [batch_size * num_windows, 1]
+                beta_shft_seq = torch.bmm(
+                    cshft_one_hot_seq,
+                    torch.reshape(
+                        C_seq, shape=[-1, C_seq.shape[2], C_seq.shape[3]]
+                    )
                 )
-                alpha_seq_prev = torch.masked_select(
-                    alpha_seq[:, :-1], m_seq[:, 1:]
+                beta_shft_seq = torch.reshape(
+                    beta_shft_seq, shape=[batch_size, seq_len]
+                )
+                beta_shft_seq_window = torch.cat(
+                    [
+                        beta_shft_seq[:, j:j + 1]
+                        for j in range(
+                            beta_shft_seq.shape[1] - self.window_size + 1
+                        )
+                    ],
+                    dim=0
+                )
+
+                # gamma_shft_seq: [batch_size, seq_len]
+                # gamma_shft_seq_window: [batch_size * num_windows, 1]
+                gamma_shft_seq = self.D1(dshft_seq).squeeze()
+                gamma_shft_seq_window = torch.cat(
+                    [
+                        gamma_shft_seq[:, j:j + 1]
+                        for j in range(
+                            gamma_shft_seq.shape[1] - self.window_size + 1
+                        )
+                    ],
+                    dim=0
+                )
+
+                # rshft_hat_seq_window: [batch_size * num_windows, 1]
+                rshft_hat_seq_window = torch.sigmoid(
+                    alpha_seq_window +
+                    beta_shft_seq_window -
+                    gamma_shft_seq_window
                 )
 
                 opt.zero_grad()
-                loss = ((rshft_hat_seq - rshft_seq) ** 2).mean() + \
-                    ((r_hat_seq - r_seq) ** 2).mean() + \
-                    0.01 * ((alpha_seq_next - alpha_seq_prev) ** 2).mean()
+                loss = (rshft_hat_seq_window - rshft_seq_window) ** 2
+                loss = torch.masked_select(loss, m_seq_window).mean()
                 loss.backward()
                 opt.step()
 
@@ -195,9 +237,8 @@ class UserModel(Module):
 
                     self.eval()
 
-                    alpha_seq, beta_seq, beta_shft_seq, \
-                        gamma_seq, gamma_shft_seq, h_seq, C_seq = \
-                        self(c_seq, cshft_seq, d_seq, dshft_seq, r_seq)
+                    alpha_seq, h_seq, C_seq = \
+                        self(c_seq, d_seq, r_seq)
 
                     rshft_hat_seq = torch.sigmoid(
                         alpha_seq + beta_shft_seq - gamma_shft_seq

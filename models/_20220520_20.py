@@ -165,7 +165,7 @@ class UserModel(Module):
                 )
                 rshft_hat_seq = torch.masked_select(rshft_hat_seq, m_seq)
                 r_hat_seq = torch.sigmoid(
-                    alpha_seq - gamma_seq
+                    alpha_seq + beta_seq - gamma_seq
                 )
                 r_hat_seq = torch.masked_select(r_hat_seq, m_seq)
 
@@ -182,7 +182,7 @@ class UserModel(Module):
                 opt.zero_grad()
                 loss = ((rshft_hat_seq - rshft_seq) ** 2).mean() + \
                     ((r_hat_seq - r_seq) ** 2).mean() + \
-                    0.01 * ((alpha_seq_next - alpha_seq_prev) ** 2).mean()
+                    0.1 * ((alpha_seq_next - alpha_seq_prev) ** 2).mean()
                 loss.backward()
                 opt.step()
 
