@@ -243,11 +243,6 @@ class UserModel(Module):
                     c_seq, d_seq, r_seq, \
                         cshft_seq, dshft_seq, rshft_seq, m_seq = data
 
-                    self.eval()
-
-                    alpha_seq, h_seq, C_seq = \
-                        self(c_seq, d_seq, r_seq)
-
                     batch_size = c_seq.shape[0]
                     seq_len = c_seq.shape[1]
 
@@ -274,7 +269,7 @@ class UserModel(Module):
                         dim=0
                     )
 
-                    self.train()
+                    self.eval()
 
                     alpha_seq, h_seq, C_seq = \
                         self(c_seq, d_seq, r_seq)
@@ -303,7 +298,8 @@ class UserModel(Module):
                     ).unsqueeze(-2)
 
                     # beta_shft_seq: [batch_size, seq_len]
-                    # beta_shft_seq_window: [batch_size * num_windows, 1]
+                    # beta_shft_seq_window:
+                    # [batch_size * num_windows, window_size]
                     beta_shft_seq = torch.bmm(
                         torch.reshape(
                             cshft_one_hot_seq,
@@ -322,7 +318,7 @@ class UserModel(Module):
                     )
                     beta_shft_seq_window = torch.cat(
                         [
-                            beta_shft_seq[:, j:j + 1]
+                            beta_shft_seq[:, j:j + self.window_size]
                             for j in range(
                                 beta_shft_seq.shape[1] - self.window_size + 1
                             )
@@ -331,11 +327,12 @@ class UserModel(Module):
                     )
 
                     # gamma_shft_seq: [batch_size, seq_len]
-                    # gamma_shft_seq_window: [batch_size * num_windows, 1]
+                    # gamma_shft_seq_window:
+                    # [batch_size * num_windows, window_size]
                     gamma_shft_seq = self.D1(dshft_seq).squeeze()
                     gamma_shft_seq_window = torch.cat(
                         [
-                            gamma_shft_seq[:, j:j + 1]
+                            gamma_shft_seq[:, j:j + self.window_size]
                             for j in range(
                                 gamma_shft_seq.shape[1] - self.window_size + 1
                             )
@@ -343,7 +340,8 @@ class UserModel(Module):
                         dim=0
                     )
 
-                    # rshft_hat_seq_window: [batch_size * num_windows, 1]
+                    # rshft_hat_seq_window:
+                    # [batch_size * num_windows, window_size]
                     rshft_hat_seq_window = torch.sigmoid(
                         alpha_seq_window +
                         beta_shft_seq_window -

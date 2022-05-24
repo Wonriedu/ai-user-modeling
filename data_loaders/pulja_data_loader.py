@@ -36,14 +36,33 @@ class PuljaDataLoader(Dataset):
         )
 
         # 3등급 커리큘럼 예상 풀이시간 기준으로 작성
+        # self.difficulty2duration = {
+        #     1.0: 0.75,
+        #     2.0: 0.75,
+        #     3.0: 1.0,
+        #     4.0: 1.5,
+        #     5.0: 2.5,
+        #     6.0: 7,
+        #     7.0: 10,
+        # }
+        # 임의 기준
+        # self.difficulty2duration = {
+        #     1.0: 0.75,
+        #     2.0: 0.75,
+        #     3.0: 1.0,
+        #     4.0: 1.0,
+        #     5.0: 1.5,
+        #     6.0: 2.0,
+        #     7.0: 4.0,
+        # }
         self.difficulty2duration = {
             1.0: 0.75,
             2.0: 0.75,
             3.0: 1.0,
-            4.0: 1.5,
-            5.0: 2.5,
-            6.0: 7,
-            7.0: 10,
+            4.0: 1.0,
+            5.0: 1.0,
+            6.0: 1.5,
+            7.0: 1.5,
         }
         self.difficulty2duration = {
             k: v * 60 for k, v in self.difficulty2duration.items()
