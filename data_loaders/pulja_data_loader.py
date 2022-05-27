@@ -13,6 +13,10 @@ DATASET_DIR = "datasets"
 TABLE_DIR = "tables"
 
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
 class PuljaDataLoader(Dataset):
     def __init__(
         self, seq_len, dataset_dir=DATASET_DIR, table_dir=TABLE_DIR
@@ -146,11 +150,36 @@ class PuljaDataLoader(Dataset):
                 self.c_seqs, self.d_seqs, self.r_seqs, self.seq_len
             )
 
-    def get_response(self, r, TR):
-        return r * \
-            (
-                1.50 - np.minimum(
-                    np.maximum(TR, 0.65), 1.50
-                )
-            ) / \
-            (1.50 - 0.65)
+    def get_response(self, r_seq, TR_seq):
+        return r_seq * (TR_seq <= 1.0).astype(float)
+
+    # def get_response(self, r_seq, TR_seq):
+    #     result = []
+    #     for r, TR in zip(r_seq, TR_seq):
+    #         if r == 1:
+    #             basis = 0.5
+    #             TR = np.minimum(TR, 1.5)
+
+    #             result.append(sigmoid(
+    #                 basis *
+    #                 (np.tan((np.pi / 2) - (TR * np.pi / 3)))
+    #             ))
+    #         else:
+    #             basis = -0.5
+    #             TR = np.maximum(TR, 0.65)
+
+    #             result.append(sigmoid(
+    #                 basis *
+    #                 (np.tan((np.pi / 2) - ((1 / TR) * np.pi * 0.65 / 2)))
+    #             ))
+
+    #     return np.array(result)
+
+    # def get_response(self, r, TR):
+    #     return r * \
+    #         (
+    #             1.50 - np.minimum(
+    #                 np.maximum(TR, 0.65), 1.50
+    #             )
+    #         ) / \
+    #         (1.50 - 0.65)

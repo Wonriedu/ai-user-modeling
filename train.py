@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 
 from data_loaders.pulja_data_loader import PuljaDataLoader
-from models._20220524_00 import UserModel
+from models._20220523_00 import UserModel
 from models.utils import collate_fn
 
 
@@ -60,14 +60,19 @@ def main():
 
     opt = Adam(model.parameters())
 
-    train_loss_means, test_loss_means = model.train_model(
+    train_loss_means, test_loss_means, aucs = model.train_model(
         train_loader, test_loader, num_epochs, opt, ckpt_path
     )
+    import numpy as np
+    print(np.min(test_loss_means))
+    print(np.max(aucs))
 
     with open(os.path.join(ckpt_path, "train_loss_means.pkl"), "wb") as f:
         pickle.dump(train_loss_means, f)
     with open(os.path.join(ckpt_path, "test_loss_means.pkl"), "wb") as f:
         pickle.dump(test_loss_means, f)
+    with open(os.path.join(ckpt_path, "aucs.pkl"), "wb") as f:
+        pickle.dump(aucs, f)
 
 
 if __name__ == "__main__":

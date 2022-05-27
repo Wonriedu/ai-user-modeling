@@ -5,7 +5,8 @@ import torch
 
 from torch.nn import Module, Embedding, Parameter, GRU, Sequential, Linear, \
     ReLU, Dropout
-from torch.nn.functional import one_hot
+from torch.nn.functional import one_hot, binary_cross_entropy_with_logits
+from sklearn import metrics
 
 
 class UserModel(Module):
@@ -117,8 +118,10 @@ class UserModel(Module):
     ):
         train_loss_means = []
         test_loss_means = []
+        aucs = []
 
-        min_test_loss_mean = np.inf
+        # min_test_loss_mean = np.inf
+        max_auc = 0
 
         for i in range(1, num_epochs + 1):
             train_loss_mean = []
@@ -131,27 +134,7 @@ class UserModel(Module):
                 seq_len = c_seq.shape[1]
 
                 # rshft_seq: [batch_size, seq_len]
-                # rshft_seq_window: [batch_size * num_windows, window_size]
-                rshft_seq_window = torch.cat(
-                    [
-                        rshft_seq[:, j:j + self.window_size]
-                        for j in range(
-                            rshft_seq.shape[1] - self.window_size + 1
-                        )
-                    ],
-                    dim=0
-                )
                 # m_seq: [batch_size, seq_len]
-                # m_seq_window: [batch_size * num_windows, window_size]
-                m_seq_window = torch.cat(
-                    [
-                        m_seq[:, j:j + self.window_size]
-                        for j in range(
-                            m_seq.shape[1] - self.window_size + 1
-                        )
-                    ],
-                    dim=0
-                )
 
                 self.train()
 
@@ -159,16 +142,6 @@ class UserModel(Module):
                     self(c_seq, d_seq, r_seq)
 
                 # alpha_seq: [batch_size, seq_len]
-                # alpha_seq_window: [batch_size * num_windows, 1]
-                alpha_seq_window = torch.cat(
-                    [
-                        alpha_seq[:, j:j + 1]
-                        for j in range(
-                            alpha_seq.shape[1] - self.window_size + 1
-                        )
-                    ],
-                    dim=0
-                )
 
                 # cshft_one_hot_seq: [batch_size, seq_len, 1, num_c]
                 cshft_one_hot_seq = one_hot(cshft_seq, self.num_c).float()
@@ -182,7 +155,6 @@ class UserModel(Module):
                 ).unsqueeze(-2)
 
                 # beta_shft_seq: [batch_size, seq_len]
-                # beta_shft_seq_window: [batch_size * num_windows, window_size]
                 beta_shft_seq = torch.bmm(
                     torch.reshape(
                         cshft_one_hot_seq,
@@ -199,40 +171,28 @@ class UserModel(Module):
                 beta_shft_seq = torch.reshape(
                     beta_shft_seq, shape=[batch_size, seq_len]
                 )
-                beta_shft_seq_window = torch.cat(
-                    [
-                        beta_shft_seq[:, j:j + self.window_size]
-                        for j in range(
-                            beta_shft_seq.shape[1] - self.window_size + 1
-                        )
-                    ],
-                    dim=0
-                )
 
                 # gamma_shft_seq: [batch_size, seq_len]
-                # gamma_shft_seq_window:
-                # [batch_size * num_windows, window_size]
                 gamma_shft_seq = self.D1(dshft_seq).squeeze()
-                gamma_shft_seq_window = torch.cat(
-                    [
-                        gamma_shft_seq[:, j:j + self.window_size]
-                        for j in range(
-                            gamma_shft_seq.shape[1] - self.window_size + 1
-                        )
-                    ],
-                    dim=0
-                )
 
-                # rshft_hat_seq_window: [batch_size * num_windows, window_size]
-                rshft_hat_seq_window = torch.sigmoid(
-                    alpha_seq_window +
-                    beta_shft_seq_window -
-                    gamma_shft_seq_window
-                )
+                # rshft_hat_seq: [batch_size, seq_len]
+                # rshft_hat_seq = torch.sigmoid(
+                #     alpha_seq +
+                #     beta_shft_seq -
+                #     gamma_shft_seq
+                # )
 
                 opt.zero_grad()
-                loss = (rshft_hat_seq_window - rshft_seq_window) ** 2
-                loss = torch.masked_select(loss, m_seq_window).mean()
+                # loss = (rshft_hat_seq - rshft_seq) ** 2
+                # loss = torch.masked_select(loss, m_seq).mean()
+                loss = binary_cross_entropy_with_logits(
+                    torch.masked_select(
+                        alpha_seq +
+                        beta_shft_seq -
+                        gamma_shft_seq, m_seq
+                    ),
+                    torch.masked_select(rshft_seq, m_seq)
+                )
                 loss.backward()
                 opt.step()
 
@@ -247,27 +207,7 @@ class UserModel(Module):
                     seq_len = c_seq.shape[1]
 
                     # rshft_seq: [batch_size, seq_len]
-                    # rshft_seq_window: [batch_size * num_windows, window_size]
-                    rshft_seq_window = torch.cat(
-                        [
-                            rshft_seq[:, j:j + self.window_size]
-                            for j in range(
-                                rshft_seq.shape[1] - self.window_size + 1
-                            )
-                        ],
-                        dim=0
-                    )
                     # m_seq: [batch_size, seq_len]
-                    # m_seq_window: [batch_size * num_windows, window_size]
-                    m_seq_window = torch.cat(
-                        [
-                            m_seq[:, j:j + self.window_size]
-                            for j in range(
-                                m_seq.shape[1] - self.window_size + 1
-                            )
-                        ],
-                        dim=0
-                    )
 
                     self.eval()
 
@@ -275,16 +215,6 @@ class UserModel(Module):
                         self(c_seq, d_seq, r_seq)
 
                     # alpha_seq: [batch_size, seq_len]
-                    # alpha_seq_window: [batch_size * num_windows, 1]
-                    alpha_seq_window = torch.cat(
-                        [
-                            alpha_seq[:, j:j + 1]
-                            for j in range(
-                                alpha_seq.shape[1] - self.window_size + 1
-                            )
-                        ],
-                        dim=0
-                    )
 
                     # cshft_one_hot_seq: [batch_size, seq_len, 1, num_c]
                     cshft_one_hot_seq = one_hot(cshft_seq, self.num_c).float()
@@ -298,8 +228,6 @@ class UserModel(Module):
                     ).unsqueeze(-2)
 
                     # beta_shft_seq: [batch_size, seq_len]
-                    # beta_shft_seq_window:
-                    # [batch_size * num_windows, window_size]
                     beta_shft_seq = torch.bmm(
                         torch.reshape(
                             cshft_one_hot_seq,
@@ -316,59 +244,53 @@ class UserModel(Module):
                     beta_shft_seq = torch.reshape(
                         beta_shft_seq, shape=[batch_size, seq_len]
                     )
-                    beta_shft_seq_window = torch.cat(
-                        [
-                            beta_shft_seq[:, j:j + self.window_size]
-                            for j in range(
-                                beta_shft_seq.shape[1] - self.window_size + 1
-                            )
-                        ],
-                        dim=0
-                    )
 
                     # gamma_shft_seq: [batch_size, seq_len]
-                    # gamma_shft_seq_window:
-                    # [batch_size * num_windows, window_size]
                     gamma_shft_seq = self.D1(dshft_seq).squeeze()
-                    gamma_shft_seq_window = torch.cat(
-                        [
-                            gamma_shft_seq[:, j:j + self.window_size]
-                            for j in range(
-                                gamma_shft_seq.shape[1] - self.window_size + 1
-                            )
-                        ],
-                        dim=0
-                    )
 
-                    # rshft_hat_seq_window:
-                    # [batch_size * num_windows, window_size]
-                    rshft_hat_seq_window = torch.sigmoid(
-                        alpha_seq_window +
-                        beta_shft_seq_window -
-                        gamma_shft_seq_window
+                    # rshft_hat_seq: [batch_size, seq_len]
+                    rshft_hat_seq = torch.sigmoid(
+                        alpha_seq +
+                        beta_shft_seq -
+                        gamma_shft_seq
                     )
 
                     train_loss_mean = np.mean(train_loss_mean)
-                    test_loss_mean = \
-                        (rshft_hat_seq_window - rshft_seq_window) ** 2
-                    test_loss_mean = torch.masked_select(loss, m_seq_window)\
-                        .mean().detach().cpu().numpy()
-
-                    print(
-                        "Epochs: {},  Train Loss Mean: {},  Test Loss Mean: {}"
-                        .format(i, train_loss_mean, test_loss_mean)
+                    # test_loss_mean = \
+                    #     (rshft_hat_seq - rshft_seq) ** 2
+                    # test_loss_mean = torch.masked_select(loss, m_seq)\
+                    #     .mean().detach().cpu().numpy()
+                    test_loss_mean = binary_cross_entropy_with_logits(
+                        torch.masked_select(
+                            alpha_seq +
+                            beta_shft_seq -
+                            gamma_shft_seq, m_seq
+                        ),
+                        torch.masked_select(rshft_seq, m_seq)
+                    ).detach().cpu().numpy()
+                    auc = metrics.roc_auc_score(
+                        y_true=rshft_seq.detach().cpu().numpy(),
+                        y_score=rshft_hat_seq.detach().cpu().numpy(),
                     )
 
-                    if test_loss_mean < min_test_loss_mean:
+                    print(
+                        "Epochs: {},  Train Loss Mean: {},  AUC: {}"
+                        .format(i, train_loss_mean, auc)
+                    )
+
+                    # if test_loss_mean < min_test_loss_mean:
+                    if auc > max_auc:
                         torch.save(
                             self.state_dict(),
                             os.path.join(
                                 ckpt_path, "model.ckpt"
                             )
                         )
-                        min_test_loss_mean = test_loss_mean
+                        # min_test_loss_mean = test_loss_mean
+                        max_auc = auc
 
                     train_loss_means.append(train_loss_mean)
                     test_loss_means.append(test_loss_mean)
+                    aucs.append(auc)
 
-        return train_loss_means, test_loss_means
+        return train_loss_means, test_loss_means, aucs
