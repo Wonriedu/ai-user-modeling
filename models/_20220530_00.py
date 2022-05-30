@@ -176,18 +176,9 @@ class UserModel(Module):
                 )
 
                 # gamma_shft_seq: [batch_size, seq_len]
-                gamma_shft_seq = self.D1(dshft_seq).squeeze()
-
-                # rshft_hat_seq: [batch_size, seq_len]
-                # rshft_hat_seq = torch.sigmoid(
-                #     alpha_seq +
-                #     beta_shft_seq -
-                #     gamma_shft_seq
-                # )
+                gamma_shft_seq = self.D(dshft_seq).squeeze()
 
                 opt.zero_grad()
-                # loss = (rshft_hat_seq - rshft_seq) ** 2
-                # loss = torch.masked_select(loss, m_seq).mean()
                 loss = binary_cross_entropy_with_logits(
                     torch.masked_select(
                         alpha_seq +
@@ -208,9 +199,6 @@ class UserModel(Module):
 
                     batch_size = c_seq.shape[0]
                     seq_len = c_seq.shape[1]
-
-                    # rshft_seq: [batch_size, seq_len]
-                    # m_seq: [batch_size, seq_len]
 
                     self.eval()
 
@@ -249,7 +237,7 @@ class UserModel(Module):
                     )
 
                     # gamma_shft_seq: [batch_size, seq_len]
-                    gamma_shft_seq = self.D1(dshft_seq).squeeze()
+                    gamma_shft_seq = self.D(dshft_seq).squeeze()
 
                     # rshft_hat_seq: [batch_size, seq_len]
                     rshft_hat_seq = torch.sigmoid(
@@ -259,10 +247,6 @@ class UserModel(Module):
                     )
 
                     train_loss_mean = np.mean(train_loss_mean)
-                    # test_loss_mean = \
-                    #     (rshft_hat_seq - rshft_seq) ** 2
-                    # test_loss_mean = torch.masked_select(loss, m_seq)\
-                    #     .mean().detach().cpu().numpy()
                     test_loss_mean = binary_cross_entropy_with_logits(
                         torch.masked_select(
                             alpha_seq +
@@ -281,7 +265,6 @@ class UserModel(Module):
                         .format(i, train_loss_mean, auc)
                     )
 
-                    # if test_loss_mean < min_test_loss_mean:
                     if auc > max_auc:
                         torch.save(
                             self.state_dict(),
@@ -289,7 +272,6 @@ class UserModel(Module):
                                 ckpt_path, "model.ckpt"
                             )
                         )
-                        # min_test_loss_mean = test_loss_mean
                         max_auc = auc
 
                     train_loss_means.append(train_loss_mean)
