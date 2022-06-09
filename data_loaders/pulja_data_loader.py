@@ -60,13 +60,23 @@ class PuljaDataLoader(Dataset):
         #     7.0: 1.5,
         # }
         # 임의 기준 02
+        # self.difficulty2duration = {
+        #     1.0: 1.5,
+        #     2.0: 2.0,
+        #     3.0: 2.5,
+        #     4.0: 2.5,
+        #     5.0: 2.5,
+        #     6.0: 3.0,
+        #     7.0: 7.0,
+        # }
+        # 임의 기준 03
         self.difficulty2duration = {
             1.0: 1.5,
             2.0: 2.0,
             3.0: 2.5,
             4.0: 2.5,
-            5.0: 2.5,
-            6.0: 3.0,
+            5.0: 3.0,
+            6.0: 5.0,
             7.0: 7.0,
         }
         self.difficulty2duration = {

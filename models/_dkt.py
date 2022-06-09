@@ -190,7 +190,7 @@ class UserModel(Module):
                         torch.save(
                             self.state_dict(),
                             os.path.join(
-                                ckpt_path, "model.ckpt"
+                                ckpt_path, "model_max.ckpt"
                             )
                         )
                         # min_test_loss_mean = test_loss_mean
@@ -199,5 +199,12 @@ class UserModel(Module):
                     train_loss_means.append(train_loss_mean)
                     test_loss_means.append(test_loss_mean)
                     aucs.append(auc)
+
+        torch.save(
+            self.state_dict(),
+            os.path.join(
+                ckpt_path, "model_fin.ckpt"
+            )
+        )
 
         return train_loss_means, test_loss_means, aucs
