@@ -9,20 +9,21 @@ from sklearn import metrics
 
 
 class UserModel(Module):
-    def __init__(self, num_c, num_d, dim_v):
+    def __init__(self, num_c1, num_c2, num_d, dim_v):
         super().__init__()
 
-        self.num_c = num_c
+        self.num_c1 = num_c1
+        self.num_c2 = num_c2
         self.num_d = num_d
 
         self.dim_v = dim_v
 
-        self.X = Embedding(self.num_c * self.num_d, self.dim_v)
+        self.X = Embedding(self.num_c2 * self.num_d, self.dim_v)
 
         self.v_r = Parameter(torch.Tensor(self.dim_v))
 
         self.gru = GRU(self.dim_v * 2, self.dim_v, batch_first=True)
-        self.out_layer = Linear(self.dim_v, self.num_c * self.num_d)
+        self.out_layer = Linear(self.dim_v, self.num_c2 * self.num_d)
         self.dropout_layer = Dropout()
 
     def forward(
@@ -44,7 +45,7 @@ class UserModel(Module):
         seq_len = c_seq.shape[1]
 
         # v_x_seq, v_r_seq: [batch_size, seq_len, dim_v]
-        x_seq = c_seq + self.num_c * d_seq
+        x_seq = c_seq + self.num_c2 * d_seq
         v_x_seq = self.X(x_seq)
         v_r_seq = r_seq.unsqueeze(-1) * self.v_r
 
@@ -58,10 +59,10 @@ class UserModel(Module):
                 torch.cat([v_x_seq, v_r_seq], dim=-1)
             )
 
-        # alpha_seq: [batch_size, seq_len, num_c, num_d]
+        # alpha_seq: [batch_size, seq_len, num_c2, num_d]
         alpha_seq = self.out_layer(h_seq).squeeze()
         alpha_seq = torch.reshape(
-            alpha_seq, shape=[batch_size, seq_len, self.num_c, self.num_d]
+            alpha_seq, shape=[batch_size, seq_len, self.num_c2, self.num_d]
         )
 
         return alpha_seq, h_seq
@@ -80,8 +81,8 @@ class UserModel(Module):
             train_loss_mean = []
 
             for data in train_loader:
-                c_seq, d_seq, r_seq, \
-                    cshft_seq, dshft_seq, rshft_seq, m_seq = data
+                c1_seq, c2_seq, d_seq, r_seq, \
+                    c1shft_seq, c2shft_seq, dshft_seq, rshft_seq, m_seq = data
 
                 # rshft_seq: [batch_size, seq_len]
                 # m_seq: [batch_size, seq_len]
@@ -89,12 +90,12 @@ class UserModel(Module):
                 self.train()
 
                 alpha_seq, h_seq = \
-                    self(c_seq, d_seq, r_seq)
+                    self(c2_seq, d_seq, r_seq)
 
-                # alpha_seq: [batch_size, seq_len, num_c, num_d]
+                # alpha_seq: [batch_size, seq_len, num_c2, num_d]
 
-                # cshft_one_hot_seq: [batch_size, seq_len, num_c, 1]
-                cshft_one_hot_seq = one_hot(cshft_seq, self.num_c)\
+                # cshft_one_hot_seq: [batch_size, seq_len, num_c2, 1]
+                cshft_one_hot_seq = one_hot(c2shft_seq, self.num_c2)\
                     .unsqueeze(-1).float()
 
                 # dshft_one_hot_seq: [batch_size, seq_len, 1, num_d]
@@ -102,7 +103,7 @@ class UserModel(Module):
                     .unsqueeze(-2).float()
 
                 # xshft_one_hot_seq:
-                # [batch_size, seq_len, num_c, num_d]
+                # [batch_size, seq_len, num_c2, num_d]
                 xshft_one_hot_seq = \
                     cshft_one_hot_seq * dshft_one_hot_seq
 
@@ -117,8 +118,6 @@ class UserModel(Module):
                 # )
 
                 opt.zero_grad()
-                # loss = (rshft_hat_seq - rshft_seq) ** 2
-                # loss = torch.masked_select(loss, m_seq).mean()
                 loss = binary_cross_entropy_with_logits(
                     torch.masked_select(alpha_shft_seq, m_seq),
                     torch.masked_select(rshft_seq, m_seq)
@@ -130,8 +129,9 @@ class UserModel(Module):
 
             with torch.no_grad():
                 for data in test_loader:
-                    c_seq, d_seq, r_seq, \
-                        cshft_seq, dshft_seq, rshft_seq, m_seq = data
+                    c1_seq, c2_seq, d_seq, r_seq, \
+                        c1shft_seq, c2shft_seq, dshft_seq, rshft_seq, m_seq = \
+                        data
 
                     # rshft_seq: [batch_size, seq_len]
                     # m_seq: [batch_size, seq_len]
@@ -139,12 +139,12 @@ class UserModel(Module):
                     self.eval()
 
                     alpha_seq, h_seq = \
-                        self(c_seq, d_seq, r_seq)
+                        self(c2_seq, d_seq, r_seq)
 
-                    # alpha_seq: [batch_size, seq_len, num_c, num_d]
+                    # alpha_seq: [batch_size, seq_len, num_c2, num_d]
 
-                    # cshft_one_hot_seq: [batch_size, seq_len, num_c, 1]
-                    cshft_one_hot_seq = one_hot(cshft_seq, self.num_c)\
+                    # cshft_one_hot_seq: [batch_size, seq_len, num_c2, 1]
+                    cshft_one_hot_seq = one_hot(c2shft_seq, self.num_c2)\
                         .unsqueeze(-1).float()
 
                     # dshft_one_hot_seq: [batch_size, seq_len, 1, num_d]
@@ -152,7 +152,7 @@ class UserModel(Module):
                         .unsqueeze(-2).float()
 
                     # xshft_one_hot_seq:
-                    # [batch_size, seq_len, num_c, num_d]
+                    # [batch_size, seq_len, num_c2, num_d]
                     xshft_one_hot_seq = \
                         cshft_one_hot_seq * dshft_one_hot_seq
 
@@ -167,10 +167,6 @@ class UserModel(Module):
                     )
 
                     train_loss_mean = np.mean(train_loss_mean)
-                    # test_loss_mean = \
-                    #     (rshft_hat_seq - rshft_seq) ** 2
-                    # test_loss_mean = torch.masked_select(loss, m_seq)\
-                    #     .mean().detach().cpu().numpy()
                     test_loss_mean = binary_cross_entropy_with_logits(
                         torch.masked_select(alpha_shft_seq, m_seq),
                         torch.masked_select(rshft_seq, m_seq)

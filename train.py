@@ -31,7 +31,9 @@ def main():
     else:
         device = "cpu"
 
-    model = UserModel(dataset.num_c, dataset.num_d, dim_v).to(device)
+    model = UserModel(
+        dataset.num_c1, dataset.num_c2, dataset.num_d, dim_v
+    ).to(device)
 
     train_size = int(len(dataset) * train_ratio)
     test_size = len(dataset) - train_size

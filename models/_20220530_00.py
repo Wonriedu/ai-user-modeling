@@ -10,15 +10,14 @@ from sklearn import metrics
 
 
 class UserModel(Module):
-    def __init__(self, num_c, num_d, dim_v, window_size=10):
+    def __init__(self, num_c1, num_c2, num_d, dim_v):
         super().__init__()
 
-        self.num_c = num_c
+        self.num_c1 = num_c1
+        self.num_c2 = num_c2
         self.num_d = num_d
 
         self.dim_v = dim_v
-
-        self.window_size = window_size
 
         self.D = Embedding(self.num_d, 1)
 
@@ -53,12 +52,12 @@ class UserModel(Module):
                 d_seq: [batch_size, seq_len]
                 r_seq: [batch_size, seq_len]
                 h_0: [batch_size, dim_v]
-                C_0: [batch_size, num_c, 1]
+                C_0: [batch_size, num_c2, 1]
 
             Returns:
                 alpha_seq: [batch_size, seq_len]
                 h_seq: [batch_size, seq_len, dim_v]
-                C_seq: [batch_size, seq_len, num_c, 1]
+                C_seq: [batch_size, seq_len, num_c2, 1]
         '''
         batch_size = c_seq.shape[0]
 
@@ -77,22 +76,22 @@ class UserModel(Module):
         # alpha_seq: [batch_size, seq_len]
         alpha_seq = self.linear_1(h_seq).squeeze()
 
-        # C: [batch_size, num_c, 1]
+        # C: [batch_size, num_c2, 1]
         if C_0:
             C = torch.clone(C_0)
         else:
-            C = torch.zeros([batch_size, self.num_c, 1])
+            C = torch.zeros([batch_size, self.num_c2, 1])
         C_seq = []
 
-        # c_one_hot_seq: [batch_size, seq_len, num_c]
-        c_one_hot_seq = one_hot(c_seq, self.num_c).float()
+        # c_one_hot_seq: [batch_size, seq_len, num_c2]
+        c_one_hot_seq = one_hot(c_seq, self.num_c2).float()
 
         for c_one_hot, v_d, v_r in zip(
             c_one_hot_seq.permute(1, 0, 2),
             v_d_seq.permute(1, 0, 2),
             v_r_seq.permute(1, 0, 2)
         ):
-            # c_one_hot: [batch_size, num_c]
+            # c_one_hot: [batch_size, num_c2]
             # v_d, v_r: [batch_size, dim_v]
 
             # beta_tilde: [batch_size, 1, 1]
@@ -111,7 +110,7 @@ class UserModel(Module):
 
             C_seq.append(C)
 
-        # C_seq: [batch_size, seq_len, num_c, 1]
+        # C_seq: [batch_size, seq_len, num_c2, 1]
         C_seq = torch.stack(C_seq, dim=1)
 
         return alpha_seq, h_seq, C_seq
@@ -146,8 +145,8 @@ class UserModel(Module):
 
                 # alpha_seq: [batch_size, seq_len]
 
-                # c2shft_one_hot_seq: [batch_size, seq_len, 1, num_c]
-                c2shft_one_hot_seq = one_hot(c2shft_seq, self.num_c).float()
+                # c2shft_one_hot_seq: [batch_size, seq_len, 1, num_c2]
+                c2shft_one_hot_seq = one_hot(c2shft_seq, self.num_c2).float()
                 c2shft_one_hot_seq = torch.reshape(
                     c2shft_one_hot_seq,
                     shape=[
@@ -208,9 +207,9 @@ class UserModel(Module):
 
                     # alpha_seq: [batch_size, seq_len]
 
-                    # c2shft_one_hot_seq: [batch_size, seq_len, 1, num_c]
+                    # c2shft_one_hot_seq: [batch_size, seq_len, 1, num_c2]
                     c2shft_one_hot_seq = one_hot(
-                        c2shft_seq, self.num_c
+                        c2shft_seq, self.num_c2
                     ).float()
                     c2shft_one_hot_seq = torch.reshape(
                         c2shft_one_hot_seq,
