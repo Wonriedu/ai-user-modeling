@@ -10,37 +10,49 @@ else:
     from torch import FloatTensor, LongTensor
 
 
-def match_seq_len(c_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
+def match_seq_len(c1_seqs, c2_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
     '''
         Args:
-            c_seqs: [batch_size, some_sequence_length]
+            c1_seqs: [batch_size, some_sequence_length]
+            c2_seqs: [batch_size, some_sequence_length]
             d_seqs: [batch_size, some_sequence_length]
             r_seqs: [batch_size, some_sequence_length]
             seq_len: 균일하게 맞추고자 하는 시퀀스 길이
             pad_val: 시퀀스 길이를 맞추며 발생하는 패딩 값
         Returns:
-            proc_c_seqs: [batch_size, seq_len + 1]
+            proc_c1_seqs: [batch_size, seq_len + 1]
+            proc_c2_seqs: [batch_size, seq_len + 1]
             proc_d_seqs: [batch_size, seq_len + 1]
             proc_r_seqs: [batch_size, seq_len + 1]
     '''
-    proc_c_seqs = []
+    proc_c1_seqs = []
+    proc_c2_seqs = []
     proc_d_seqs = []
     proc_r_seqs = []
 
-    for c_seq, d_seq, r_seq in zip(c_seqs, d_seqs, r_seqs):
+    for c1_seq, c2_seq, d_seq, r_seq in zip(c1_seqs, c2_seqs, d_seqs, r_seqs):
         i = 0
-        while i + seq_len + 1 < len(c_seq):
-            proc_c_seqs.append(c_seq[i:i + seq_len + 1])
+        while i + seq_len + 1 < len(c1_seq):
+            proc_c1_seqs.append(c1_seq[i:i + seq_len + 1])
+            proc_c2_seqs.append(c2_seq[i:i + seq_len + 1])
             proc_d_seqs.append(d_seq[i:i + seq_len + 1])
             proc_r_seqs.append(r_seq[i:i + seq_len + 1])
 
             i += seq_len + 1
 
-        proc_c_seqs.append(
+        proc_c1_seqs.append(
             np.concatenate(
                 [
-                    c_seq[i:],
-                    np.array([pad_val] * (i + seq_len + 1 - len(c_seq)))
+                    c1_seq[i:],
+                    np.array([pad_val] * (i + seq_len + 1 - len(c1_seq)))
+                ]
+            )
+        )
+        proc_c2_seqs.append(
+            np.concatenate(
+                [
+                    c2_seq[i:],
+                    np.array([pad_val] * (i + seq_len + 1 - len(c2_seq)))
                 ]
             )
         )
@@ -48,7 +60,7 @@ def match_seq_len(c_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
             np.concatenate(
                 [
                     d_seq[i:],
-                    np.array([pad_val] * (i + seq_len + 1 - len(c_seq)))
+                    np.array([pad_val] * (i + seq_len + 1 - len(d_seq)))
                 ]
             )
         )
@@ -56,12 +68,12 @@ def match_seq_len(c_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
             np.concatenate(
                 [
                     r_seq[i:],
-                    np.array([pad_val] * (i + seq_len + 1 - len(c_seq)))
+                    np.array([pad_val] * (i + seq_len + 1 - len(d_seq)))
                 ]
             )
         )
 
-    return proc_c_seqs, proc_d_seqs, proc_r_seqs
+    return proc_c1_seqs, proc_c2_seqs, proc_d_seqs, proc_r_seqs
 
 
 def collate_fn(batch, pad_val=-1):

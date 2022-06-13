@@ -32,12 +32,18 @@ class PuljaDataLoader(Dataset):
                 self.table_dir, "tb_user_curriculum_lecture_unit_solve.csv"
             )
         )
+        self.tb_unit1 = pd.read_csv(
+            os.path.join(self.table_dir, "tb_unit1.csv")
+        )
+        self.tb_unit2 = pd.read_csv(
+            os.path.join(self.table_dir, "tb_unit2.csv")
+        )
         self.tb_problems = pd.read_csv(
             os.path.join(self.table_dir, "tb_problems.csv")
         )
-        self.tb_curriculum_unit = pd.read_csv(
-            os.path.join(self.table_dir, "tb_curriculum_unit.csv")
-        )
+        # self.tb_curriculum_unit = pd.read_csv(
+        #     os.path.join(self.table_dir, "tb_curriculum_unit.csv")
+        # )
 
         self.difficulty2duration = {
             1.0: 1.5,
@@ -66,12 +72,16 @@ class PuljaDataLoader(Dataset):
 
         self.num_u = self.u_list.shape[0]
 
-        self.c1_list = np.unique(self.df["category1"].values)
+        self.c1_list = self.tb_unit1[
+            self.tb_unit1["unit1Seq"] >= 1
+        ]["name"].values
         self.c12idx = {c1: i for i, c1 in enumerate(self.c1_list)}
 
         self.num_c1 = self.c1_list.shape[0]
 
-        self.c2_list = np.unique(self.df["category2"].values)
+        self.c2_list = self.tb_unit2[
+            self.tb_unit2["unit2Seq"] >= 1
+        ]["name"].values
         self.c22idx = {c2: i for i, c2 in enumerate(self.c2_list)}
 
         self.num_c2 = self.c2_list.shape[0]
