@@ -68,7 +68,8 @@ def collate_fn(batch, pad_val=-1):
     '''
         The collate function for torch.utils.data.DataLoader
         Returns:
-            c_seqs:
+            c1_seqs:
+            c2_seqs:
             d_seqs:
             r_seqs:
             cshft_seqs: [batch_size, maximum_sequence_length_in_the_batch]
@@ -78,23 +79,30 @@ def collate_fn(batch, pad_val=-1):
                 the padded entry is with the size of \
                 [batch_size, maximum_sequence_length_in_the_batch]
     '''
-    c_seqs = []
+    c1_seqs = []
+    c2_seqs = []
     d_seqs = []
     r_seqs = []
-    cshft_seqs = []
+    c1shft_seqs = []
+    c2shft_seqs = []
     dshft_seqs = []
     rshft_seqs = []
 
-    for c_seq, d_seq, r_seq in batch:
-        c_seqs.append(LongTensor(c_seq[:-1]))
+    for c1_seq, c2_seq, d_seq, r_seq in batch:
+        c1_seqs.append(LongTensor(c1_seq[:-1]))
+        c2_seqs.append(LongTensor(c2_seq[:-1]))
         d_seqs.append(LongTensor(d_seq[:-1]))
         r_seqs.append(FloatTensor(r_seq[:-1]))
-        cshft_seqs.append(LongTensor(c_seq[1:]))
+        c1shft_seqs.append(LongTensor(c1_seq[1:]))
+        c2shft_seqs.append(LongTensor(c2_seq[1:]))
         dshft_seqs.append(LongTensor(d_seq[1:]))
         rshft_seqs.append(FloatTensor(r_seq[1:]))
 
-    c_seqs = pad_sequence(
-        c_seqs, batch_first=True, padding_value=pad_val
+    c1_seqs = pad_sequence(
+        c1_seqs, batch_first=True, padding_value=pad_val
+    )
+    c2_seqs = pad_sequence(
+        c2_seqs, batch_first=True, padding_value=pad_val
     )
     d_seqs = pad_sequence(
         d_seqs, batch_first=True, padding_value=pad_val
@@ -102,8 +110,11 @@ def collate_fn(batch, pad_val=-1):
     r_seqs = pad_sequence(
         r_seqs, batch_first=True, padding_value=pad_val
     )
-    cshft_seqs = pad_sequence(
-        cshft_seqs, batch_first=True, padding_value=pad_val
+    c1shft_seqs = pad_sequence(
+        c1shft_seqs, batch_first=True, padding_value=pad_val
+    )
+    c2shft_seqs = pad_sequence(
+        c2shft_seqs, batch_first=True, padding_value=pad_val
     )
     dshft_seqs = pad_sequence(
         dshft_seqs, batch_first=True, padding_value=pad_val
@@ -112,11 +123,16 @@ def collate_fn(batch, pad_val=-1):
         rshft_seqs, batch_first=True, padding_value=pad_val
     )
 
-    mask_seqs = (c_seqs != pad_val) * (cshft_seqs != pad_val)
+    mask_seqs = (c1_seqs != pad_val) * (c1shft_seqs != pad_val)
 
-    c_seqs, d_seqs, r_seqs, cshft_seqs, dshft_seqs, rshft_seqs = \
-        c_seqs * mask_seqs, d_seqs * mask_seqs, r_seqs * mask_seqs, \
-        cshft_seqs * mask_seqs, dshft_seqs * mask_seqs, rshft_seqs * mask_seqs
+    c1_seqs = c1_seqs * mask_seqs
+    c2_seqs = c2_seqs * mask_seqs
+    d_seqs = d_seqs * mask_seqs
+    r_seqs = r_seqs * mask_seqs
+    c1shft_seqs = c1shft_seqs * mask_seqs
+    c2shft_seqs = c2shft_seqs * mask_seqs
+    dshft_seqs = dshft_seqs * mask_seqs
+    rshft_seqs = rshft_seqs * mask_seqs
 
-    return c_seqs, d_seqs, r_seqs, \
-        cshft_seqs, dshft_seqs, rshft_seqs, mask_seqs
+    return c1_seqs, c2_seqs, d_seqs, r_seqs, \
+        c1shft_seqs, c2shft_seqs, dshft_seqs, rshft_seqs, mask_seqs
