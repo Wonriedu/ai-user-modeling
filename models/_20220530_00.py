@@ -25,7 +25,7 @@ class UserModel(Module):
         self.v_d = Parameter(torch.Tensor(self.dim_v))
 
         self.v_r = Parameter(torch.Tensor(self.dim_v))
-        self.v_beta = Parameter(torch.Tensor(self.dim_v))
+        self.v_c = Parameter(torch.Tensor(self.dim_v))
 
         self.gru = GRU(self.dim_v * 2, self.dim_v, batch_first=True)
         self.linear_1 = Sequential(
@@ -98,13 +98,13 @@ class UserModel(Module):
             # beta_tilde: [batch_size, 1, 1]
             beta_tilde = torch.bmm(c_one_hot.unsqueeze(1), C)
 
-            # v_beta_tilde: [batch_size, dim_v]
-            v_beta_tilde = (beta_tilde * self.v_beta).squeeze()
+            # v_c: [batch_size, dim_v]
+            v_c = (beta_tilde * self.v_c).squeeze()
             if batch_size == 1:
-                v_beta_tilde = v_beta_tilde.unsqueeze(0)
+                v_c = v_c.unsqueeze(0)
 
             # new_c: [batch_size, 1]
-            new_c = self.linear_2(torch.cat([v_beta_tilde, v_d, v_r], dim=-1))
+            new_c = self.linear_2(torch.cat([v_c, v_d, v_r], dim=-1))
 
             C = C * (1 - c_one_hot.unsqueeze(-1)) + \
                 new_c.unsqueeze(1) * c_one_hot.unsqueeze(-1)
@@ -130,11 +130,11 @@ class UserModel(Module):
             train_loss_mean = []
 
             for data in train_loader:
-                c_seq, d_seq, r_seq, \
-                    cshft_seq, dshft_seq, rshft_seq, m_seq = data
+                c1_seq, c2_seq, d_seq, r_seq, \
+                    c1shft_seq, c2shft_seq, dshft_seq, rshft_seq, m_seq = data
 
-                batch_size = c_seq.shape[0]
-                seq_len = c_seq.shape[1]
+                batch_size = c2_seq.shape[0]
+                seq_len = c2_seq.shape[1]
 
                 # rshft_seq: [batch_size, seq_len]
                 # m_seq: [batch_size, seq_len]
@@ -142,29 +142,29 @@ class UserModel(Module):
                 self.train()
 
                 alpha_seq, h_seq, C_seq = \
-                    self(c_seq, d_seq, r_seq)
+                    self(c2_seq, d_seq, r_seq)
 
                 # alpha_seq: [batch_size, seq_len]
 
-                # cshft_one_hot_seq: [batch_size, seq_len, 1, num_c]
-                cshft_one_hot_seq = one_hot(cshft_seq, self.num_c).float()
-                cshft_one_hot_seq = torch.reshape(
-                    cshft_one_hot_seq,
+                # c2shft_one_hot_seq: [batch_size, seq_len, 1, num_c]
+                c2shft_one_hot_seq = one_hot(c2shft_seq, self.num_c).float()
+                c2shft_one_hot_seq = torch.reshape(
+                    c2shft_one_hot_seq,
                     shape=[
                         -1,
-                        cshft_one_hot_seq.shape[1],
-                        cshft_one_hot_seq.shape[2]
+                        c2shft_one_hot_seq.shape[1],
+                        c2shft_one_hot_seq.shape[2]
                     ]
                 ).unsqueeze(-2)
 
                 # beta_shft_seq: [batch_size, seq_len]
                 beta_shft_seq = torch.bmm(
                     torch.reshape(
-                        cshft_one_hot_seq,
+                        c2shft_one_hot_seq,
                         shape=[
                             -1,
-                            cshft_one_hot_seq.shape[2],
-                            cshft_one_hot_seq.shape[3]
+                            c2shft_one_hot_seq.shape[2],
+                            c2shft_one_hot_seq.shape[3]
                         ]
                     ),
                     torch.reshape(
@@ -194,38 +194,41 @@ class UserModel(Module):
 
             with torch.no_grad():
                 for data in test_loader:
-                    c_seq, d_seq, r_seq, \
-                        cshft_seq, dshft_seq, rshft_seq, m_seq = data
+                    c1_seq, c2_seq, d_seq, r_seq, \
+                        c1shft_seq, c2shft_seq, dshft_seq, rshft_seq, m_seq = \
+                        data
 
-                    batch_size = c_seq.shape[0]
-                    seq_len = c_seq.shape[1]
+                    batch_size = c2_seq.shape[0]
+                    seq_len = c2_seq.shape[1]
 
                     self.eval()
 
                     alpha_seq, h_seq, C_seq = \
-                        self(c_seq, d_seq, r_seq)
+                        self(c2_seq, d_seq, r_seq)
 
                     # alpha_seq: [batch_size, seq_len]
 
-                    # cshft_one_hot_seq: [batch_size, seq_len, 1, num_c]
-                    cshft_one_hot_seq = one_hot(cshft_seq, self.num_c).float()
-                    cshft_one_hot_seq = torch.reshape(
-                        cshft_one_hot_seq,
+                    # c2shft_one_hot_seq: [batch_size, seq_len, 1, num_c]
+                    c2shft_one_hot_seq = one_hot(
+                        c2shft_seq, self.num_c
+                    ).float()
+                    c2shft_one_hot_seq = torch.reshape(
+                        c2shft_one_hot_seq,
                         shape=[
                             -1,
-                            cshft_one_hot_seq.shape[1],
-                            cshft_one_hot_seq.shape[2]
+                            c2shft_one_hot_seq.shape[1],
+                            c2shft_one_hot_seq.shape[2]
                         ]
                     ).unsqueeze(-2)
 
                     # beta_shft_seq: [batch_size, seq_len]
                     beta_shft_seq = torch.bmm(
                         torch.reshape(
-                            cshft_one_hot_seq,
+                            c2shft_one_hot_seq,
                             shape=[
                                 -1,
-                                cshft_one_hot_seq.shape[2],
-                                cshft_one_hot_seq.shape[3]
+                                c2shft_one_hot_seq.shape[2],
+                                c2shft_one_hot_seq.shape[3]
                             ]
                         ),
                         torch.reshape(

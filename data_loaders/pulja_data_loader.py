@@ -69,10 +69,12 @@ class PuljaDataLoader(Dataset):
         self.c1_list = np.unique(self.df["category1"].values)
         self.c12idx = {c1: i for i, c1 in enumerate(self.c1_list)}
 
+        self.num_c1 = self.c1_list.shape[0]
+
         self.c2_list = np.unique(self.df["category2"].values)
         self.c22idx = {c2: i for i, c2 in enumerate(self.c2_list)}
 
-        self.num_c = self.c_list.shape[0]
+        self.num_c2 = self.c2_list.shape[0]
 
         self.d_list = np.unique(self.df["difficulty_cd"].values)
         self.d2idx = {d: i for i, d in enumerate(self.d_list)}
