@@ -8,6 +8,9 @@ class UserSimulator:
     def __init__(self, model) -> None:
         self.model = model
 
+        self.state_dim = self.model.dim_v
+        self.action_dim = 1
+
     def simulate(
         self, c1_seq, c2_seq, d_seq, h_0=None, C1_0=None, C2_0=None,
     ):
@@ -401,3 +404,84 @@ class UserSimulator:
         )
 
         return alpha_seq, d_seq, r_seq, h_seq, C1_seq, C2_seq
+
+    def render(self):
+        pass
+
+    def reset(self):
+        # h: [1, dim_v]
+        self.h = torch.zeros([1, self.model.dim_v])
+
+        # C1: [1, num_c1, 1]
+        self.C1 = torch.zeros([1, self.model.num_c1, 1])
+
+        # C2: [1, num_c2, 1]
+        self.C2 = torch.zeros([1, self.model.num_c2, 1])
+
+        ob = self.h.squeeze().detach().cpu().numpy()
+
+        return ob
+
+    def step(self, d, c1=0, c2=0):
+        '''
+            Args:
+                d: []
+                c1: []
+                c2: []
+            Returns:
+        '''
+
+        # d_seq, c1_seq, c2_seq: [1, 1]
+        d_seq = torch.tensor([[d]]).long()
+        c1_seq = torch.tensor([[c1]]).long()
+        c2_seq = torch.tensor([[c2]]).long()
+
+        self.model.eval()
+
+        # Initial response generation
+
+        # alpha: [batch_size]
+        alpha = self.model.linear_1(self.h).squeeze()
+        alpha = torch.reshape(alpha, [1])
+
+        # c1_one_hot: [1, 1, num_c1]
+        # c2_one_hot: [1, 1, num_c2]
+        c1_one_hot = one_hot(c1_seq[:, :1], self.model.num_c1).float()
+        c2_one_hot = one_hot(c2_seq[:, :1], self.model.num_c2).float()
+
+        # beta1, beta2: [1]
+        beta1 = torch.bmm(c1_one_hot, self.C1).squeeze()
+        beta1 = torch.reshape(beta1, [1])
+        beta2 = torch.bmm(c2_one_hot, self.C2).squeeze()
+        beta2 = torch.reshape(beta2, [1])
+
+        # gamma: [1]
+        gamma = self.model.D(d_seq[:, :1]).squeeze()
+        gamma = torch.reshape(gamma, [1])
+
+        # p_0: [1]
+        p_0 = torch.sigmoid(alpha + beta1 + beta2 - gamma)\
+            .detach().cpu().numpy()
+
+        # r_seq: [1, 1]
+        r_seq = torch.tensor(
+            np.random.binomial(1, p_0, [1, 1])
+        )
+
+        alpha_seq, h_seq, C1_seq, C2_seq = self.model(
+            c1_seq, c2_seq, d_seq, r_seq, self.h, self.C1, self.C2
+        )
+
+        self.h = h_seq[:, -1, :]
+        self.C1 = C1_seq[:, -1, :, :]
+        self.C2 = C2_seq[:, -1, :, :]
+
+        # alpha: []
+        alpha = alpha_seq[:, -1].squeeze()
+
+        ob = self.h.squeeze().detach().cpu().numpy()
+        rwd = alpha.detach().cpu().numpy()
+        done = False
+        info = None
+
+        return ob, rwd, done, info
