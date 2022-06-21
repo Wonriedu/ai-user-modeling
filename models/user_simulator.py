@@ -34,7 +34,7 @@ class UserSimulator:
         # Initial response generation
 
         # h_seq: [batch_size, dim_v]
-        if h_0:
+        if h_0 is not None:
             h = torch.clone(h_0)
         else:
             h = torch.zeros([batch_size, self.model.dim_v])
@@ -44,13 +44,13 @@ class UserSimulator:
         alpha = torch.reshape(alpha, [batch_size])
 
         # C1: [batch_size, num_c1, 1]
-        if C1_0:
+        if C1_0 is not None:
             C1 = torch.clone(C1_0)
         else:
             C1 = torch.zeros([batch_size, self.model.num_c1, 1])
 
         # C2: [batch_size, num_c2, 1]
-        if C2_0:
+        if C2_0 is not None:
             C2 = torch.clone(C2_0)
         else:
             C2 = torch.zeros([batch_size, self.model.num_c2, 1])
@@ -165,7 +165,7 @@ class UserSimulator:
         # Initial response generation
 
         # h_seq: [batch_size, dim_v]
-        if h_0:
+        if h_0 is not None:
             h = torch.clone(h_0)
         else:
             h = torch.zeros([batch_size, self.model.dim_v])
@@ -178,13 +178,13 @@ class UserSimulator:
         alpha = torch.reshape(alpha, [batch_size, 1])
 
         # C1: [batch_size, num_c1, 1]
-        if C1_0:
+        if C1_0 is not None:
             C1 = torch.clone(C1_0)
         else:
             C1 = torch.zeros([batch_size, self.model.num_c1, 1])
 
         # C2: [batch_size, num_c2, 1]
-        if C2_0:
+        if C2_0 is not None:
             C2 = torch.clone(C2_0)
         else:
             C2 = torch.zeros([batch_size, self.model.num_c2, 1])
@@ -222,15 +222,8 @@ class UserSimulator:
 
         # r_seq_one: [batch_size * num_d, 1]
         # r_seq_zero: [batch_size * num_d, 1]
-        r_seq_one = torch.tensor(np.ones([batch_size * num_d, 1]))
-        r_seq_zero = torch.tensor(np.zeros([batch_size * num_d, 1]))
-
-        print(c1_seq_repeat[:, :1], c2_seq_repeat[:, :1], d_seq, r_seq_one)
-        print(h_0_repeat)
-        if h_0_repeat is not None:
-            print("aaa")
-        else:
-            print("bbb")
+        r_seq_one = torch.tensor(np.ones([batch_size * num_d, 1])).float()
+        r_seq_zero = torch.tensor(np.zeros([batch_size * num_d, 1])).float()
 
         alpha_seq_one, _, C1_seq, C2_seq = self.model(
             c1_seq_repeat[:, :1],
@@ -251,15 +244,15 @@ class UserSimulator:
             C2_0_repeat
         )
 
-        # alpha_seq_one: [batch_size, num_d]
-        # alpha_seq_zero: [batch_size, num_d]
-        alpha_seq_one = torch.reshape(alpha_seq_one, [batch_size, num_d])\
+        # alpha_one: [batch_size, num_d]
+        # alpha_zero: [batch_size, num_d]
+        alpha_one = torch.reshape(alpha_seq_one, [batch_size, num_d])\
             .detach().cpu().numpy()
-        alpha_seq_zero = torch.reshape(alpha_seq_zero, [batch_size, num_d])\
+        alpha_zero = torch.reshape(alpha_seq_zero, [batch_size, num_d])\
             .detach().cpu().numpy()
 
         # reward: [batch_size, num_d]
-        reward = alpha_seq_one * p + alpha_seq_zero * (1 - p)
+        reward = alpha_one * p + alpha_zero * (1 - p)
 
         # d_seq: [batch_size, 1]
         d_seq = np.argmax(reward, axis=-1)
@@ -315,7 +308,7 @@ class UserSimulator:
 
             # gamma: [1, num_d]
             gamma = self.model.D(
-                torch.tensor(np.arange(num_d))
+                torch.tensor(np.arange(num_d)).long()
             ).squeeze()
             gamma = torch.reshape(gamma, [1, -1])
 
@@ -324,8 +317,9 @@ class UserSimulator:
                 .detach().cpu().numpy()
 
             # d: [batch_size * num_d, 1]
-            d = torch.tensor(np.arange(num_d)).unsqueeze(-1)
-            d = d.expand(batch_size, -1)
+            d = torch.tensor(np.arange(num_d)).unsqueeze(-1).long()
+            if batch_size > 1:
+                d = d.expand(batch_size, -1)
 
             # d_seq_repeat: [batch_size * num_d, 1]
             d_seq_repeat = d_seq.expand(num_d, -1)
@@ -334,8 +328,10 @@ class UserSimulator:
 
             # r_seq_one: [batch_size * num_d, 1]
             # r_seq_zero: [batch_size * num_d, 1]
-            r_seq_one = torch.tensor(np.ones([batch_size * num_d, 1]))
-            r_seq_zero = torch.tensor(np.zeros([batch_size * num_d, 1]))
+            r_seq_one = torch.tensor(np.ones([batch_size * num_d, 1]))\
+                .float()
+            r_seq_zero = torch.tensor(np.zeros([batch_size * num_d, 1]))\
+                .float()
 
             r_seq_one = torch.cat(
                 [r_seq.expand(num_d, -1), r_seq_one], dim=-1
@@ -345,8 +341,8 @@ class UserSimulator:
             )
 
             alpha_seq_one, _, C1_seq, C2_seq = self.model(
-                c1_seq_repeat[:, i + 1:i + 2],
-                c2_seq_repeat[:, i + 1:i + 2],
+                c1_seq_repeat[:, :i + 2],
+                c2_seq_repeat[:, :i + 2],
                 d_seq_repeat,
                 r_seq_one,
                 h_0_repeat,
@@ -354,8 +350,8 @@ class UserSimulator:
                 C2_0_repeat
             )
             alpha_seq_zero, _, C1_seq, C2_seq = self.model(
-                c1_seq_repeat[:, :1],
-                c2_seq_repeat[:, :1],
+                c1_seq_repeat[:, :i + 2],
+                c2_seq_repeat[:, :i + 2],
                 d_seq_repeat,
                 r_seq_zero,
                 h_0_repeat,
@@ -363,17 +359,17 @@ class UserSimulator:
                 C2_0_repeat
             )
 
-            # alpha_seq_one: [batch_size, num_d]
-            # alpha_seq_zero: [batch_size, num_d]
-            alpha_seq_one = torch.reshape(
-                alpha_seq_one, [batch_size, num_d]
+            # alpha_one: [batch_size, num_d]
+            # alpha_zero: [batch_size, num_d]
+            alpha_one = torch.reshape(
+                alpha_seq_one[:, -1], [batch_size, num_d]
             ).detach().cpu().numpy()
-            alpha_seq_zero = torch.reshape(
-                alpha_seq_zero, [batch_size, num_d]
+            alpha_zero = torch.reshape(
+                alpha_seq_zero[:, -1], [batch_size, num_d]
             ).detach().cpu().numpy()
 
             # reward: [batch_size, num_d]
-            reward = alpha_seq_one * p + alpha_seq_zero * (1 - p)
+            reward = alpha_one * p + alpha_zero * (1 - p)
 
             # d: [batch_size, 1]
             d = np.argmax(reward, axis=-1)
