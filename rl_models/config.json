@@ -4,7 +4,7 @@
             "lr": 1e-3,
             "num_iters": 200,
             "num_steps_per_iter": 2000,
-            "horizon": null,
+            "horizon": 2000,
             "discount": 0.99,
             "normalize_return": true,
             "use_baseline": true
@@ -15,7 +15,7 @@
             "lr": 1e-3,
             "num_iters": 200,
             "num_steps_per_iter": 2000,
-            "horizon": null,
+            "horizon": 2000,
             "discount": 0.99,
             "normalize_advantage": true
         }
@@ -25,7 +25,7 @@
             "lr": 1e-3,
             "num_iters": 200,
             "num_steps_per_iter": 2000,
-            "horizon": null,
+            "horizon": 2000,
             "discount": 0.99,
             "max_kl": 0.01,
             "cg_damping": 0.1,
@@ -37,7 +37,7 @@
         "train_config": {
             "num_iters": 200,
             "num_steps_per_iter": 2000,
-            "horizon": null,
+            "horizon": 2000,
             "gamma": 0.99,
             "lambda": 0.99,
             "epsilon": 0.01,
@@ -53,7 +53,7 @@
             "num_steps_per_iter": 2000,
             "num_epochs": 10,
             "minibatch_size": 64,
-            "horizon": null,
+            "horizon": 2000,
             "gamma": 0.99,
             "lambda": 0.99,
             "epsilon": 0.2,

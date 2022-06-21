@@ -1,13 +1,13 @@
 {
     "train_config": {
-        "lr": 0.001,
         "num_iters": 200,
         "num_steps_per_iter": 2000,
         "horizon": 2000,
-        "discount": 0.99,
+        "gamma": 0.99,
+        "lambda": 0.99,
+        "epsilon": 0.01,
         "max_kl": 0.01,
         "cg_damping": 0.1,
-        "normalize_return": true,
-        "use_baseline": true
+        "normalize_advantage": true
     }
 }

@@ -8,8 +8,8 @@ class UserSimulator:
     def __init__(self, model) -> None:
         self.model = model
 
-        self.state_dim = self.model.dim_v
-        self.action_dim = 1
+        self.state_dim = 3
+        self.action_dim = self.model.num_d
 
     def simulate(
         self, c1_seq, c2_seq, d_seq, h_0=None, C1_0=None, C2_0=None,
@@ -412,13 +412,19 @@ class UserSimulator:
         # h: [1, dim_v]
         self.h = torch.zeros([1, self.model.dim_v])
 
+        # alpha: [batch_size]
+        alpha = self.model.linear_1(self.h).squeeze()
+        alpha = torch.reshape(alpha, [1])
+
         # C1: [1, num_c1, 1]
         self.C1 = torch.zeros([1, self.model.num_c1, 1])
 
         # C2: [1, num_c2, 1]
         self.C2 = torch.zeros([1, self.model.num_c2, 1])
 
-        ob = self.h.squeeze().detach().cpu().numpy()
+        ob = torch.tensor(
+            [alpha, self.C1.squeeze()[0], self.C2.squeeze()[0]]
+        ).detach().cpu().numpy()
 
         return ob
 
@@ -432,9 +438,9 @@ class UserSimulator:
         '''
 
         # d_seq, c1_seq, c2_seq: [1, 1]
-        d_seq = torch.tensor([[d]]).long()
-        c1_seq = torch.tensor([[c1]]).long()
-        c2_seq = torch.tensor([[c2]]).long()
+        d_seq = torch.tensor(np.array([[d]])).long()
+        c1_seq = torch.tensor(np.array([[c1]])).long()
+        c2_seq = torch.tensor(np.array([[c2]])).long()
 
         self.model.eval()
 
@@ -479,7 +485,9 @@ class UserSimulator:
         # alpha: []
         alpha = alpha_seq[:, -1].squeeze()
 
-        ob = self.h.squeeze().detach().cpu().numpy()
+        ob = torch.tensor(
+            [alpha, self.C1.squeeze()[c1], self.C2.squeeze()[c2]]
+        ).detach().cpu().numpy()
         rwd = alpha.detach().cpu().numpy()
         done = False
         info = None

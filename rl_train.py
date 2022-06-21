@@ -52,6 +52,17 @@ def main():
 
     model = UserModel(dataset.num_c1, dataset.num_c2, dataset.num_d, dim_v)\
         .to(device)
+    model.load_state_dict(
+        torch.load(
+            os.path.join(
+                os.path.join(
+                    "ckpts", "_20220615_00"
+                ),
+                "model_fin.ckpt"
+            ),
+            map_location=device
+        )
+    )
 
     env = UserSimulator(model)
     env.reset()
