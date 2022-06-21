@@ -157,10 +157,12 @@ class UserSimulator:
 
         self.model.eval()
 
+        ######################################################
+        # torch.Tensor.expand need to be contiguous!
         # c1_seq_repeat: [batch_size * num_d, seq_len]
         # c2_seq_repeat: [batch_size * num_d, seq_len]
-        c1_seq_repeat = c1_seq.expand(num_d, -1)
-        c2_seq_repeat = c2_seq.expand(num_d, -1)
+        c1_seq_repeat = c1_seq.expand(num_d, -1).contiguous()
+        c2_seq_repeat = c2_seq.expand(num_d, -1).contiguous()
 
         # Initial response generation
 
@@ -171,7 +173,7 @@ class UserSimulator:
             h = torch.zeros([batch_size, self.model.dim_v])
 
         # h_0_repeat: [batch_size * num_d, dim_v]
-        h_0_repeat = h.expand(num_d, -1)
+        h_0_repeat = h.expand(num_d, -1).contiguous()
 
         # alpha: [batch_size, 1]
         alpha = self.model.linear_1(h).squeeze()
@@ -191,8 +193,8 @@ class UserSimulator:
 
         # C1_0_repeat: [batch_size * num_d, num_c1, 1]
         # C2_0_repeat: [batch_size * num_d, num_c2, 1]
-        C1_0_repeat = C1.expand(num_d, -1, -1)
-        C2_0_repeat = C2.expand(num_d, -1, -1)
+        C1_0_repeat = C1.expand(num_d, -1, -1).contiguous()
+        C2_0_repeat = C2.expand(num_d, -1, -1).contiguous()
 
         # c1_one_hot: [batch_size, 1, num_c1]
         # c2_one_hot: [batch_size, 1, num_c2]
@@ -218,7 +220,7 @@ class UserSimulator:
         # d_seq: [batch_size * num_d, 1]
         d_seq = torch.tensor(np.arange(num_d)).unsqueeze(-1).long()
         if batch_size > 1:
-            d_seq = d_seq.expand(batch_size, -1)
+            d_seq = d_seq.expand(batch_size, -1).contiguous()
 
         # r_seq_one: [batch_size * num_d, 1]
         # r_seq_zero: [batch_size * num_d, 1]
@@ -256,7 +258,9 @@ class UserSimulator:
 
         # d_seq: [batch_size, 1]
         d_seq = np.argmax(reward, axis=-1)
-        d_seq = torch.tensor(np.expand_dims(d_seq, axis=-1)).long()
+        d_seq = torch.tensor(
+            np.expand_dims(d_seq, axis=-1)
+        ).contiguous().long()
 
         # gamma: [batch_size, 1]
         gamma = self.model.D(d_seq)
@@ -319,10 +323,10 @@ class UserSimulator:
             # d: [batch_size * num_d, 1]
             d = torch.tensor(np.arange(num_d)).unsqueeze(-1).long()
             if batch_size > 1:
-                d = d.expand(batch_size, -1)
+                d = d.expand(batch_size, -1).contiguous()
 
             # d_seq_repeat: [batch_size * num_d, 1]
-            d_seq_repeat = d_seq.expand(num_d, -1)
+            d_seq_repeat = d_seq.expand(num_d, -1).contiguous()
 
             d_seq_repeat = torch.cat([d_seq_repeat, d], dim=-1)
 
@@ -334,10 +338,10 @@ class UserSimulator:
                 .float()
 
             r_seq_one = torch.cat(
-                [r_seq.expand(num_d, -1), r_seq_one], dim=-1
+                [r_seq.expand(num_d, -1).contiguous(), r_seq_one], dim=-1
             )
             r_seq_zero = torch.cat(
-                [r_seq.expand(num_d, -1), r_seq_zero], dim=-1
+                [r_seq.expand(num_d, -1).contiguous(), r_seq_zero], dim=-1
             )
 
             alpha_seq_one, _, C1_seq, C2_seq = self.model(

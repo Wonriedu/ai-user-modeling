@@ -72,7 +72,7 @@ class UserModel(Module):
         if h_0 is not None:
             h_seq, _ = self.gru(
                 torch.cat([v_d_seq, v_r_seq], dim=-1),
-                h_0.unsqueeze(0).contiguous()
+                h_0.unsqueeze(0)
             )
         else:
             h_seq, _ = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1))
