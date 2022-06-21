@@ -57,13 +57,14 @@ class UserModel(Module):
                 d_seq: [batch_size, seq_len]
                 r_seq: [batch_size, seq_len]
                 h_0: [batch_size, dim_v]
-                C1_0: [batch_size, num_c2, 1]
+                C1_0: [batch_size, num_c1, 1]
                 C2_0: [batch_size, num_c2, 1]
 
             Returns:
                 alpha_seq: [batch_size, seq_len]
                 h_seq: [batch_size, seq_len, dim_v]
-                C_seq: [batch_size, seq_len, num_c2, 1]
+                C1_seq: [batch_size, seq_len, num_c1, 1]
+                C2_seq: [batch_size, seq_len, num_c2, 1]
         '''
         batch_size = c1_seq.shape[0]
 
