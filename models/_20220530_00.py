@@ -69,7 +69,7 @@ class UserModel(Module):
         v_r_seq = r_seq.unsqueeze(-1) * self.v_r
 
         # h_seq: [batch_size, seq_len, dim_v]
-        if h_0:
+        if h_0 is not None:
             h_seq, _ = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1), h_0)
         else:
             h_seq, _ = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1))
@@ -79,7 +79,7 @@ class UserModel(Module):
         alpha_seq = torch.reshape(alpha_seq, [batch_size, seq_len])
 
         # C: [batch_size, num_c2, 1]
-        if C_0:
+        if C_0 is not None:
             C = torch.clone(C_0)
         else:
             C = torch.zeros([batch_size, self.num_c2, 1])
