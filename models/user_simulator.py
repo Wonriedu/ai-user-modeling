@@ -93,9 +93,6 @@ class UserSimulator:
             # Response generation
 
             # alpha: [batch_size]
-            print(c1_seq[:, :i + 1].shape)
-            print(C1_seq.shape)
-            print(alpha_seq.shape)
             alpha = alpha_seq[:, -1]
 
             # C1: [batch_size, num_c1, 1]

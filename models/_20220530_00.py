@@ -60,6 +60,7 @@ class UserModel(Module):
                 C_seq: [batch_size, seq_len, num_c2, 1]
         '''
         batch_size = c_seq.shape[0]
+        seq_len = c_seq.shape[1]
 
         # gamma_seq: [batch_size, seq_len, 1]
         # v_d_seq, v_r_seq: [batch_size, seq_len, dim_v]
@@ -75,6 +76,7 @@ class UserModel(Module):
 
         # alpha_seq: [batch_size, seq_len]
         alpha_seq = self.linear_1(h_seq).squeeze()
+        alpha_seq = torch.reshape(alpha_seq, [batch_size, seq_len])
 
         # C: [batch_size, num_c2, 1]
         if C_0:
@@ -99,8 +101,7 @@ class UserModel(Module):
 
             # v_c: [batch_size, dim_v]
             v_c = (beta_tilde * self.v_c).squeeze()
-            if batch_size == 1:
-                v_c = v_c.unsqueeze(0)
+            v_c = torch.reshape(v_c, [batch_size, self.dim_v])
 
             # new_c: [batch_size, 1]
             new_c = self.linear_2(torch.cat([v_c, v_d, v_r], dim=-1))
@@ -176,6 +177,9 @@ class UserModel(Module):
 
                 # gamma_shft_seq: [batch_size, seq_len]
                 gamma_shft_seq = self.D(dshft_seq).squeeze()
+                gamma_shft_seq = torch.reshape(
+                    gamma_shft_seq, [batch_size, seq_len]
+                )
 
                 opt.zero_grad()
                 loss = binary_cross_entropy_with_logits(
@@ -240,6 +244,9 @@ class UserModel(Module):
 
                     # gamma_shft_seq: [batch_size, seq_len]
                     gamma_shft_seq = self.D(dshft_seq).squeeze()
+                    gamma_shft_seq = torch.reshape(
+                        gamma_shft_seq, [batch_size, seq_len]
+                    )
 
                     # rshft_hat_seq: [batch_size, seq_len]
                     rshft_hat_seq = torch.sigmoid(
