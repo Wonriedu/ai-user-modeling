@@ -1,9 +1,9 @@
 {
     "train_config": {
         "lr": 0.001,
-        "num_iters": 200,
+        "num_iters": 2000,
         "num_steps_per_iter": 2000,
-        "horizon": 2000,
+        "horizon": 100,
         "discount": 0.99,
         "max_kl": 0.01,
         "cg_damping": 0.1,

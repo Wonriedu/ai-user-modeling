@@ -107,7 +107,7 @@ class GAE(Module):
                     rwd_iter.append(np.sum(ep_rwds))
 
                 ep_obs = FloatTensor(np.array(ep_obs))
-                ep_rwds = FloatTensor(ep_rwds)
+                ep_rwds = FloatTensor(np.array(ep_rwds))
                 ep_disc_rwds = FloatTensor(ep_disc_rwds)
                 ep_gms = FloatTensor(ep_gms)
                 ep_lmbs = FloatTensor(ep_lmbs)

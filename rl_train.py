@@ -65,7 +65,6 @@ def main():
     )
 
     env = UserSimulator(model)
-    env.reset()
 
     discrete = True
     state_dim = env.state_dim
@@ -93,8 +92,6 @@ def main():
         ).to(device)
 
     results = model.train(env)
-
-    env.close()
 
     with open(os.path.join(ckpt_path, "results.pkl"), "wb") as f:
         pickle.dump(results, f)
