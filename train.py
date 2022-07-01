@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 
 from data_loaders.pulja_data_loader import PuljaDataLoader
-from models._dkt import UserModel
+from models._20220629_00 import UserModel
 from models.utils import collate_fn
 
 
@@ -20,7 +20,7 @@ def main():
     num_epochs = 1000
     train_ratio = 0.9
 
-    seq_len = 100
+    seq_len = 1000
 
     dim_v = 20
 

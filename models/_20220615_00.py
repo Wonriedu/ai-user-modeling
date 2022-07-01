@@ -10,7 +10,7 @@ from sklearn import metrics
 
 
 class UserModel(Module):
-    def __init__(self, num_c1, num_c2, num_d, dim_v, window_size=10):
+    def __init__(self, num_c1, num_c2, num_d, dim_v, window_size=100):
         super().__init__()
 
         self.num_c1 = num_c1

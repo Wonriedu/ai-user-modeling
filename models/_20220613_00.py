@@ -247,7 +247,7 @@ class UserModel(Module):
                         beta2_shft_seq -
                         gamma_shft_seq, m_seq
                     ),
-                    torch.masked_select(rshft_seq, m_seq)
+                    torch.masked_select(rshft_seq.float(), m_seq)
                 )
                 loss.backward()
                 opt.step()
@@ -351,7 +351,7 @@ class UserModel(Module):
                             beta2_shft_seq -
                             gamma_shft_seq, m_seq
                         ),
-                        torch.masked_select(rshft_seq, m_seq)
+                        torch.masked_select(rshft_seq.float(), m_seq)
                     ).detach().cpu().numpy()
                     auc = metrics.roc_auc_score(
                         y_true=rshft_seq.detach().cpu().numpy(),
