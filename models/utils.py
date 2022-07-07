@@ -10,11 +10,14 @@ else:
     from torch import LongTensor
 
 
-def match_seq_len(c1_seqs, c2_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
+def match_seq_len(
+    c1_seqs, c2_seqs, c4_seqs, d_seqs, r_seqs, seq_len, pad_val=-1
+):
     '''
         Args:
             c1_seqs: [batch_size, some_sequence_length]
             c2_seqs: [batch_size, some_sequence_length]
+            c4_seqs: [batch_size, some_sequence_length]
             d_seqs: [batch_size, some_sequence_length]
             r_seqs: [batch_size, some_sequence_length]
             seq_len: 균일하게 맞추고자 하는 시퀀스 길이
@@ -22,19 +25,24 @@ def match_seq_len(c1_seqs, c2_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
         Returns:
             proc_c1_seqs: [batch_size, seq_len + 1]
             proc_c2_seqs: [batch_size, seq_len + 1]
+            proc_c4_seqs: [batch_size, seq_len + 1]
             proc_d_seqs: [batch_size, seq_len + 1]
             proc_r_seqs: [batch_size, seq_len + 1]
     '''
     proc_c1_seqs = []
     proc_c2_seqs = []
+    proc_c4_seqs = []
     proc_d_seqs = []
     proc_r_seqs = []
 
-    for c1_seq, c2_seq, d_seq, r_seq in zip(c1_seqs, c2_seqs, d_seqs, r_seqs):
+    for c1_seq, c2_seq, c4_seq, d_seq, r_seq in zip(
+        c1_seqs, c2_seqs, c4_seqs, d_seqs, r_seqs
+    ):
         i = 0
         while i + seq_len + 1 < len(c1_seq):
             proc_c1_seqs.append(c1_seq[i:i + seq_len + 1])
             proc_c2_seqs.append(c2_seq[i:i + seq_len + 1])
+            proc_c4_seqs.append(c4_seq[i:i + seq_len + 1])
             proc_d_seqs.append(d_seq[i:i + seq_len + 1])
             proc_r_seqs.append(r_seq[i:i + seq_len + 1])
 
@@ -56,6 +64,14 @@ def match_seq_len(c1_seqs, c2_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
                 ]
             )
         )
+        proc_c4_seqs.append(
+            np.concatenate(
+                [
+                    c4_seq[i:],
+                    np.array([pad_val] * (i + seq_len + 1 - len(c4_seq)))
+                ]
+            )
+        )
         proc_d_seqs.append(
             np.concatenate(
                 [
@@ -73,7 +89,7 @@ def match_seq_len(c1_seqs, c2_seqs, d_seqs, r_seqs, seq_len, pad_val=-1):
             )
         )
 
-    return proc_c1_seqs, proc_c2_seqs, proc_d_seqs, proc_r_seqs
+    return proc_c1_seqs, proc_c2_seqs, proc_c4_seqs, proc_d_seqs, proc_r_seqs
 
 
 def collate_fn(batch, pad_val=-1):
@@ -82,6 +98,7 @@ def collate_fn(batch, pad_val=-1):
         Returns:
             c1_seqs:
             c2_seqs:
+            c4_seqs:
             d_seqs:
             r_seqs:
             cshft_seqs: [batch_size, maximum_sequence_length_in_the_batch]
@@ -93,20 +110,24 @@ def collate_fn(batch, pad_val=-1):
     '''
     c1_seqs = []
     c2_seqs = []
+    c4_seqs = []
     d_seqs = []
     r_seqs = []
     c1shft_seqs = []
     c2shft_seqs = []
+    c4shft_seqs = []
     dshft_seqs = []
     rshft_seqs = []
 
-    for c1_seq, c2_seq, d_seq, r_seq in batch:
+    for c1_seq, c2_seq, c4_seq, d_seq, r_seq in batch:
         c1_seqs.append(LongTensor(c1_seq[:-1]))
         c2_seqs.append(LongTensor(c2_seq[:-1]))
+        c4_seqs.append(LongTensor(c4_seq[:-1]))
         d_seqs.append(LongTensor(d_seq[:-1]))
         r_seqs.append(LongTensor(r_seq[:-1]))
         c1shft_seqs.append(LongTensor(c1_seq[1:]))
         c2shft_seqs.append(LongTensor(c2_seq[1:]))
+        c4shft_seqs.append(LongTensor(c4_seq[1:]))
         dshft_seqs.append(LongTensor(d_seq[1:]))
         rshft_seqs.append(LongTensor(r_seq[1:]))
 
@@ -116,21 +137,32 @@ def collate_fn(batch, pad_val=-1):
     c2_seqs = pad_sequence(
         c2_seqs, batch_first=True, padding_value=pad_val
     )
+    c4_seqs = pad_sequence(
+        c4_seqs, batch_first=True, padding_value=pad_val
+    )
+
     d_seqs = pad_sequence(
         d_seqs, batch_first=True, padding_value=pad_val
     )
+
     r_seqs = pad_sequence(
         r_seqs, batch_first=True, padding_value=pad_val
     )
+
     c1shft_seqs = pad_sequence(
         c1shft_seqs, batch_first=True, padding_value=pad_val
     )
     c2shft_seqs = pad_sequence(
         c2shft_seqs, batch_first=True, padding_value=pad_val
     )
+    c4shft_seqs = pad_sequence(
+        c4shft_seqs, batch_first=True, padding_value=pad_val
+    )
+
     dshft_seqs = pad_sequence(
         dshft_seqs, batch_first=True, padding_value=pad_val
     )
+
     rshft_seqs = pad_sequence(
         rshft_seqs, batch_first=True, padding_value=pad_val
     )
@@ -139,12 +171,15 @@ def collate_fn(batch, pad_val=-1):
 
     c1_seqs = c1_seqs * mask_seqs
     c2_seqs = c2_seqs * mask_seqs
+    c4_seqs = c4_seqs * mask_seqs
     d_seqs = d_seqs * mask_seqs
     r_seqs = r_seqs * mask_seqs
     c1shft_seqs = c1shft_seqs * mask_seqs
     c2shft_seqs = c2shft_seqs * mask_seqs
+    c4shft_seqs = c4shft_seqs * mask_seqs
     dshft_seqs = dshft_seqs * mask_seqs
     rshft_seqs = rshft_seqs * mask_seqs
 
-    return c1_seqs, c2_seqs, d_seqs, r_seqs, \
-        c1shft_seqs, c2shft_seqs, dshft_seqs, rshft_seqs, mask_seqs
+    return c1_seqs, c2_seqs, c4_seqs, d_seqs, r_seqs, \
+        c1shft_seqs, c2shft_seqs, c4shft_seqs, dshft_seqs, rshft_seqs, \
+        mask_seqs

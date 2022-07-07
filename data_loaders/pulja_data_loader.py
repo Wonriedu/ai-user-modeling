@@ -86,6 +86,11 @@ class PuljaDataLoader(Dataset):
 
         self.num_c2 = self.c2_list.shape[0]
 
+        self.c4_list = self.df["category4"].values
+        self.c42idx = {c4: i for i, c4 in enumerate(self.c4_list)}
+
+        self.num_c4 = self.c4_list.shape[0]
+
         self.d_list = np.unique(self.df["difficulty_cd"].values)
         self.d2idx = {d: i for i, d in enumerate(self.d_list)}
 
@@ -97,7 +102,8 @@ class PuljaDataLoader(Dataset):
             with open(
                 os.path.join(self.dataset_dir, "dataset.pkl"), "rb"
             ) as f:
-                self.c1_seqs, self.c2_seqs, self.d_seqs, self.r_seqs = \
+                self.c1_seqs, self.c2_seqs, self.c4_seqs, self.d_seqs, \
+                    self.r_seqs = \
                     pickle.load(f)
         else:
             self.preprocess()
@@ -106,14 +112,21 @@ class PuljaDataLoader(Dataset):
                 os.path.join(self.dataset_dir, "dataset.pkl"), "wb"
             ) as f:
                 pickle.dump(
-                    (self.c1_seqs, self.c2_seqs, self.d_seqs, self.r_seqs), f
+                    (
+                        self.c1_seqs,
+                        self.c2_seqs,
+                        self.c4_seqs,
+                        self.d_seqs,
+                        self.r_seqs
+                    ),
+                    f
                 )
 
         self.len = len(self.r_seqs)
 
     def __getitem__(self, idx):
-        return self.c1_seqs[idx], self.c2_seqs[idx], self.d_seqs[idx], \
-            self.r_seqs[idx]
+        return self.c1_seqs[idx], self.c2_seqs[idx], self.c4_seqs[idx], \
+            self.d_seqs[idx], self.r_seqs[idx]
 
     def __len__(self):
         return self.len
@@ -121,6 +134,7 @@ class PuljaDataLoader(Dataset):
     def preprocess(self):
         self.c1_seqs = []
         self.c2_seqs = []
+        self.c4_seqs = []
         self.d_seqs = []
         self.r_seqs = []
 
@@ -132,6 +146,9 @@ class PuljaDataLoader(Dataset):
             )
             c2_seq = np.array(
                 [self.c22idx[c2] for c2 in df_u["category2"].values]
+            )
+            c4_seq = np.array(
+                [self.c42idx[c4] for c4 in df_u["category4"].values]
             )
             d_seq = np.array(
                 [self.d2idx[d] for d in df_u["difficulty_cd"].values]
@@ -148,14 +165,17 @@ class PuljaDataLoader(Dataset):
 
             self.c1_seqs.append(c1_seq)
             self.c2_seqs.append(c2_seq)
+            self.c4_seqs.append(c4_seq)
             self.d_seqs.append(d_seq)
             self.r_seqs.append(r_seq)
 
         if self.seq_len:
-            self.c1_seqs, self.c2_seqs, self.d_seqs, self.r_seqs = \
+            self.c1_seqs, self.c2_seqs, self.c4_seqs, self.d_seqs, \
+                self.r_seqs = \
                 match_seq_len(
                     self.c1_seqs,
                     self.c2_seqs,
+                    self.c4_seqs,
                     self.d_seqs,
                     self.r_seqs,
                     self.seq_len

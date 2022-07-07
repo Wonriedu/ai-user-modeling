@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 
 from data_loaders.pulja_data_loader import PuljaDataLoader
-from models._20220613_00 import UserModel
+from models._20220707_00 import UserModel
 from models.utils import collate_fn
 
 
@@ -32,7 +32,11 @@ def main():
         device = "cpu"
 
     model = UserModel(
-        dataset.num_c1, dataset.num_c2, dataset.num_d, dim_v
+        dataset.num_c1,
+        dataset.num_c2,
+        dataset.num_c4,
+        dataset.num_d,
+        dim_v
     ).to(device)
 
     train_size = int(len(dataset) * train_ratio)
