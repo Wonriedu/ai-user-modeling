@@ -86,7 +86,7 @@ class PuljaDataLoader(Dataset):
 
         self.num_c2 = self.c2_list.shape[0]
 
-        self.c4_list = self.df["category4"].values
+        self.c4_list = np.unique(self.df["category4"].values)
         self.c42idx = {c4: i for i, c4 in enumerate(self.c4_list)}
 
         self.num_c4 = self.c4_list.shape[0]
@@ -160,7 +160,7 @@ class PuljaDataLoader(Dataset):
             )
             TR_seq = T_seq / T_hat_seq
 
-            r_seq = (df_u["isCorrect"].values == "Y").astype(float)
+            r_seq = (df_u["isCorrect"].values == "Y").astype(int)
             r_seq = self.get_response(r_seq, TR_seq)
 
             self.c1_seqs.append(c1_seq)
@@ -182,4 +182,4 @@ class PuljaDataLoader(Dataset):
                 )
 
     def get_response(self, r_seq, TR_seq):
-        return r_seq * (TR_seq <= 1.0).astype(float)
+        return r_seq * (TR_seq <= 1.0).astype(int)

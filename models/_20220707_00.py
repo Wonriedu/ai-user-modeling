@@ -59,16 +59,16 @@ class UserModel(Module):
                 d_seq: [batch_size, seq_len]
                 r_seq: [batch_size, seq_len]
                 h_0: [batch_size, dim_v]
-                C1_0: [batch_size, num_c1, 1]
-                C2_0: [batch_size, num_c2, 1]
-                C4_0: [batch_size, num_c4, 1]
+                C1_0: [batch_size, num_c1]
+                C2_0: [batch_size, num_c2]
+                C4_0: [batch_size, num_c4]
 
             Returns:
                 alpha_seq: [batch_size, seq_len]
                 h_seq: [batch_size, seq_len, dim_v]
-                C1_seq: [batch_size, seq_len, num_c1, 1]
-                C2_seq: [batch_size, seq_len, num_c2, 1]
-                C4_seq: [batch_size, seq_len, num_c4, 1]
+                C1_seq: [batch_size, seq_len, num_c1]
+                C2_seq: [batch_size, seq_len, num_c2]
+                C4_seq: [batch_size, seq_len, num_c4]
         '''
         batch_size = c1_seq.shape[0]
         seq_len = c1_seq.shape[1]
@@ -92,87 +92,85 @@ class UserModel(Module):
         alpha_seq = self.linear_1(h_seq).squeeze()
         alpha_seq = torch.reshape(alpha_seq, [batch_size, seq_len])
 
-        # C1: [batch_size, num_c1, 1]
+        # C1: [batch_size, num_c1]
         if C1_0 is not None:
             C1 = torch.clone(C1_0)
         else:
-            C1 = torch.zeros([batch_size, self.num_c1, 1])
+            C1 = torch.zeros([batch_size, self.num_c1])
         C1_seq = []
 
-        # C2: [batch_size, num_c2, 1]
+        # C2: [batch_size, num_c2]
         if C2_0 is not None:
             C2 = torch.clone(C2_0)
         else:
-            C2 = torch.zeros([batch_size, self.num_c2, 1])
+            C2 = torch.zeros([batch_size, self.num_c2])
         C2_seq = []
 
-        # C4: [batch_size, num_c4, 1]
+        # C4: [batch_size, num_c4]
         if C4_0 is not None:
             C4 = torch.clone(C4_0)
         else:
-            C4 = torch.zeros([batch_size, self.num_c4, 1])
+            C4 = torch.zeros([batch_size, self.num_c4])
         C4_seq = []
 
-        # c1_one_hot_seq: [batch_size, seq_len, num_c1]
-        # c2_one_hot_seq: [batch_size, seq_len, num_c2]
-        # c4_one_hot_seq: [batch_size, seq_len, num_c4]
-        c1_one_hot_seq = one_hot(c1_seq, self.num_c1).float()
-        c2_one_hot_seq = one_hot(c2_seq, self.num_c2).float()
-        c4_one_hot_seq = one_hot(c4_seq, self.num_c4).float()
-
-        for c1_one_hot, c2_one_hot, c4_one_hot, v_d, v_r in zip(
-            c1_one_hot_seq.permute(1, 0, 2),
-            c2_one_hot_seq.permute(1, 0, 2),
-            c4_one_hot_seq.permute(1, 0, 2),
+        for c1, c2, c4, v_d, v_r in zip(
+            c1_seq.permute(1, 0),
+            c2_seq.permute(1, 0),
+            c4_seq.permute(1, 0),
             v_d_seq.permute(1, 0, 2),
             v_r_seq.permute(1, 0, 2)
         ):
-            # c1_one_hot: [batch_size, num_c1]
-            # c2_one_hot: [batch_size, num_c2]
-            # c4_one_hot: [batch_size, num_c4]
+            # c1, c2, c4: [batch_size]
             # v_d, v_r: [batch_size, dim_v]
 
-            # beta1_tilde: [batch_size, 1, 1]
-            # beta2_tilde: [batch_size, 1, 1]
-            # beta4_tilde: [batch_size, 1, 1]
-            beta1_tilde = torch.bmm(c1_one_hot.unsqueeze(1), C1)
-            beta2_tilde = torch.bmm(c2_one_hot.unsqueeze(1), C2)
-            beta4_tilde = torch.bmm(c4_one_hot.unsqueeze(1), C4)
+            # beta1_tilde: [batch_size, 1]
+            # beta2_tilde: [batch_size, 1]
+            # beta4_tilde: [batch_size, 1]
+            beta1_tilde = torch.gather(C1, dim=-1, index=c1.unsqueeze(-1))
+            beta2_tilde = torch.gather(C2, dim=-1, index=c2.unsqueeze(-1))
+            beta4_tilde = torch.gather(C4, dim=-1, index=c4.unsqueeze(-1))
 
             # v_c1: [batch_size, dim_v]
             # v_c2: [batch_size, dim_v]
             # v_c4: [batch_size, dim_v]
-            v_c1 = (beta1_tilde * self.v_c1).squeeze()
-            v_c2 = (beta2_tilde * self.v_c2).squeeze()
-            v_c4 = (beta4_tilde * self.v_c4).squeeze()
+            v_c1 = (beta1_tilde * self.v_c1)
+            v_c2 = (beta2_tilde * self.v_c2)
+            v_c4 = (beta4_tilde * self.v_c4)
 
             v_c1 = torch.reshape(v_c1, [batch_size, self.dim_v])
             v_c2 = torch.reshape(v_c2, [batch_size, self.dim_v])
             v_c4 = torch.reshape(v_c4, [batch_size, self.dim_v])
 
             # new_c: [batch_size, 3]
-            # new_c1, new_c2, new_c4: [batch_size, 1]
+            # new_c1, new_c2, new_c4: [batch_size]
             new_c = self.linear_2(
                 torch.cat([v_c1, v_c2, v_c4, v_d, v_r], dim=-1)
             )
-            new_c1 = new_c[:, :1]
-            new_c2 = new_c[:, 1:2]
-            new_c4 = new_c[:, 2:]
+            new_c1 = new_c[:, 0]
+            new_c2 = new_c[:, 1]
+            new_c4 = new_c[:, 2]
 
-            C1 = C1 * (1 - c1_one_hot.unsqueeze(-1)) + \
-                new_c1.unsqueeze(1) * c1_one_hot.unsqueeze(-1)
-            C2 = C2 * (1 - c2_one_hot.unsqueeze(-1)) + \
-                new_c2.unsqueeze(1) * c2_one_hot.unsqueeze(-1)
-            C4 = C4 * (1 - c4_one_hot.unsqueeze(-1)) + \
-                new_c4.unsqueeze(1) * c4_one_hot.unsqueeze(-1)
+            # c1_one_hot: [batch_size, num_c1]
+            # c2_one_hot: [batch_size, num_c2]
+            # c4_one_hot: [batch_size, num_c4]
+            c1_one_hot = one_hot(c1, self.num_c1)
+            c2_one_hot = one_hot(c2, self.num_c2)
+            c4_one_hot = one_hot(c4, self.num_c4)
+
+            C1 = C1 * (1 - c1_one_hot) + \
+                new_c1.unsqueeze(-1) * c1_one_hot
+            C2 = C2 * (1 - c2_one_hot) + \
+                new_c2.unsqueeze(-1) * c2_one_hot
+            C4 = C4 * (1 - c4_one_hot) + \
+                new_c4.unsqueeze(-1) * c4_one_hot
 
             C1_seq.append(C1)
             C2_seq.append(C2)
             C4_seq.append(C4)
 
-        # C1_seq: [batch_size, seq_len, num_c1, 1]
-        # C2_seq: [batch_size, seq_len, num_c2, 1]
-        # C4_seq: [batch_size, seq_len, num_c4, 1]
+        # C1_seq: [batch_size, seq_len, num_c1]
+        # C2_seq: [batch_size, seq_len, num_c2]
+        # C4_seq: [batch_size, seq_len, num_c4]
         C1_seq = torch.stack(C1_seq, dim=1)
         C2_seq = torch.stack(C2_seq, dim=1)
         C4_seq = torch.stack(C4_seq, dim=1)
@@ -209,92 +207,18 @@ class UserModel(Module):
 
                 # alpha_seq: [batch_size, seq_len]
 
-                # c1shft_one_hot_seq: [batch_size, seq_len, 1, num_c1]
-                # c2shft_one_hot_seq: [batch_size, seq_len, 1, num_c2]
-                # c4shft_one_hot_seq: [batch_size, seq_len, 1, num_c4]
-                c1shft_one_hot_seq = one_hot(c1shft_seq, self.num_c1).float()
-                c1shft_one_hot_seq = torch.reshape(
-                    c1shft_one_hot_seq,
-                    shape=[
-                        -1,
-                        c1shft_one_hot_seq.shape[1],
-                        c1shft_one_hot_seq.shape[2]
-                    ]
-                ).unsqueeze(-2)
-
-                c2shft_one_hot_seq = one_hot(c2shft_seq, self.num_c2).float()
-                c2shft_one_hot_seq = torch.reshape(
-                    c2shft_one_hot_seq,
-                    shape=[
-                        -1,
-                        c2shft_one_hot_seq.shape[1],
-                        c2shft_one_hot_seq.shape[2]
-                    ]
-                ).unsqueeze(-2)
-
-                c4shft_one_hot_seq = one_hot(c4shft_seq, self.num_c4).float()
-                c4shft_one_hot_seq = torch.reshape(
-                    c4shft_one_hot_seq,
-                    shape=[
-                        -1,
-                        c4shft_one_hot_seq.shape[1],
-                        c4shft_one_hot_seq.shape[2]
-                    ]
-                ).unsqueeze(-2)
-
                 # beta1_shft_seq: [batch_size, seq_len]
                 # beta2_shft_seq: [batch_size, seq_len]
                 # beta4_shft_seq: [batch_size, seq_len]
-                beta1_shft_seq = torch.bmm(
-                    torch.reshape(
-                        c1shft_one_hot_seq,
-                        shape=[
-                            -1,
-                            c1shft_one_hot_seq.shape[2],
-                            c1shft_one_hot_seq.shape[3]
-                        ]
-                    ),
-                    torch.reshape(
-                        C1_seq, shape=[-1, C1_seq.shape[2], C1_seq.shape[3]]
-                    )
-                )
-                beta1_shft_seq = torch.reshape(
-                    beta1_shft_seq, shape=[batch_size, seq_len]
-                )
-
-                beta2_shft_seq = torch.bmm(
-                    torch.reshape(
-                        c2shft_one_hot_seq,
-                        shape=[
-                            -1,
-                            c2shft_one_hot_seq.shape[2],
-                            c2shft_one_hot_seq.shape[3]
-                        ]
-                    ),
-                    torch.reshape(
-                        C2_seq, shape=[-1, C2_seq.shape[2], C2_seq.shape[3]]
-                    )
-                )
-                beta2_shft_seq = torch.reshape(
-                    beta2_shft_seq, shape=[batch_size, seq_len]
-                )
-
-                beta4_shft_seq = torch.bmm(
-                    torch.reshape(
-                        c4shft_one_hot_seq,
-                        shape=[
-                            -1,
-                            c4shft_one_hot_seq.shape[2],
-                            c4shft_one_hot_seq.shape[3]
-                        ]
-                    ),
-                    torch.reshape(
-                        C4_seq, shape=[-1, C4_seq.shape[2], C4_seq.shape[3]]
-                    )
-                )
-                beta4_shft_seq = torch.reshape(
-                    beta4_shft_seq, shape=[batch_size, seq_len]
-                )
+                beta1_shft_seq = torch.gather(
+                    C1_seq, dim=-1, index=c1shft_seq.unsqueeze(-1)
+                ).reshape([batch_size, seq_len])
+                beta2_shft_seq = torch.gather(
+                    C2_seq, dim=-1, index=c2shft_seq.unsqueeze(-1)
+                ).reshape([batch_size, seq_len])
+                beta4_shft_seq = torch.gather(
+                    C4_seq, dim=-1, index=c4shft_seq.unsqueeze(-1)
+                ).reshape([batch_size, seq_len])
 
                 # gamma_shft_seq: [batch_size, seq_len]
                 gamma_shft_seq = self.D(dshft_seq).squeeze()
@@ -326,103 +250,23 @@ class UserModel(Module):
 
                     self.eval()
 
-                    alpha_seq, h_seq, C1_seq, C2_seq = \
-                        self(c1_seq, c2_seq, d_seq, r_seq)
+                    alpha_seq, h_seq, C1_seq, C2_seq, C4_seq = \
+                        self(c1_seq, c2_seq, c4_seq, d_seq, r_seq)
 
                     # alpha_seq: [batch_size, seq_len]
-
-                    # c1shft_one_hot_seq: [batch_size, seq_len, 1, num_c1]
-                    # c2shft_one_hot_seq: [batch_size, seq_len, 1, num_c2]
-                    # c4shft_one_hot_seq: [batch_size, seq_len, 1, num_c4]
-                    c1shft_one_hot_seq = one_hot(c1shft_seq, self.num_c1)\
-                        .float()
-                    c1shft_one_hot_seq = torch.reshape(
-                        c1shft_one_hot_seq,
-                        shape=[
-                            -1,
-                            c1shft_one_hot_seq.shape[1],
-                            c1shft_one_hot_seq.shape[2]
-                        ]
-                    ).unsqueeze(-2)
-
-                    c2shft_one_hot_seq = one_hot(c2shft_seq, self.num_c2)\
-                        .float()
-                    c2shft_one_hot_seq = torch.reshape(
-                        c2shft_one_hot_seq,
-                        shape=[
-                            -1,
-                            c2shft_one_hot_seq.shape[1],
-                            c2shft_one_hot_seq.shape[2]
-                        ]
-                    ).unsqueeze(-2)
-
-                    c4shft_one_hot_seq = one_hot(c4shft_seq, self.num_c4)\
-                        .float()
-                    c4shft_one_hot_seq = torch.reshape(
-                        c4shft_one_hot_seq,
-                        shape=[
-                            -1,
-                            c4shft_one_hot_seq.shape[1],
-                            c4shft_one_hot_seq.shape[2]
-                        ]
-                    ).unsqueeze(-2)
 
                     # beta1_shft_seq: [batch_size, seq_len]
                     # beta2_shft_seq: [batch_size, seq_len]
                     # beta4_shft_seq: [batch_size, seq_len]
-                    beta1_shft_seq = torch.bmm(
-                        torch.reshape(
-                            c1shft_one_hot_seq,
-                            shape=[
-                                -1,
-                                c1shft_one_hot_seq.shape[2],
-                                c1shft_one_hot_seq.shape[3]
-                            ]
-                        ),
-                        torch.reshape(
-                            C1_seq,
-                            shape=[-1, C1_seq.shape[2], C1_seq.shape[3]]
-                        )
-                    )
-                    beta1_shft_seq = torch.reshape(
-                        beta1_shft_seq, shape=[batch_size, seq_len]
-                    )
-
-                    beta2_shft_seq = torch.bmm(
-                        torch.reshape(
-                            c2shft_one_hot_seq,
-                            shape=[
-                                -1,
-                                c2shft_one_hot_seq.shape[2],
-                                c2shft_one_hot_seq.shape[3]
-                            ]
-                        ),
-                        torch.reshape(
-                            C2_seq,
-                            shape=[-1, C2_seq.shape[2], C2_seq.shape[3]]
-                        )
-                    )
-                    beta2_shft_seq = torch.reshape(
-                        beta2_shft_seq, shape=[batch_size, seq_len]
-                    )
-
-                    beta4_shft_seq = torch.bmm(
-                        torch.reshape(
-                            c4shft_one_hot_seq,
-                            shape=[
-                                -1,
-                                c4shft_one_hot_seq.shape[2],
-                                c4shft_one_hot_seq.shape[3]
-                            ]
-                        ),
-                        torch.reshape(
-                            C4_seq,
-                            shape=[-1, C4_seq.shape[2], C4_seq.shape[3]]
-                        )
-                    )
-                    beta4_shft_seq = torch.reshape(
-                        beta4_shft_seq, shape=[batch_size, seq_len]
-                    )
+                    beta1_shft_seq = torch.gather(
+                        C1_seq, dim=-1, index=c1shft_seq.unsqueeze(-1)
+                    ).reshape([batch_size, seq_len])
+                    beta2_shft_seq = torch.gather(
+                        C2_seq, dim=-1, index=c2shft_seq.unsqueeze(-1)
+                    ).reshape([batch_size, seq_len])
+                    beta4_shft_seq = torch.gather(
+                        C4_seq, dim=-1, index=c4shft_seq.unsqueeze(-1)
+                    ).reshape([batch_size, seq_len])
 
                     # gamma_shft_seq: [batch_size, seq_len]
                     gamma_shft_seq = self.D(dshft_seq).squeeze()
