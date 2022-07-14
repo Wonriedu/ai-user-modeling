@@ -271,8 +271,10 @@ class UserModel(Module):
                         torch.masked_select(rshft_seq.float(), m_seq)
                     ).detach().cpu().numpy()
                     auc = metrics.roc_auc_score(
-                        y_true=rshft_seq.detach().cpu().numpy(),
-                        y_score=rshft_hat_seq.detach().cpu().numpy(),
+                        y_true=torch.masked_select(rshft_seq, m_seq)
+                        .detach().cpu().numpy(),
+                        y_score=torch.masked_select(rshft_hat_seq, m_seq)
+                        .detach().cpu().numpy(),
                     )
 
                     print(
