@@ -90,6 +90,26 @@ class UserModel(Module):
 
         return alpha_seq, h_seq, None, None, None
 
+    def get_logits(
+        self,
+        c1_seq, c2_seq, c4_seq, d_seq, r_seq,
+        c1shft_seq, c2shft_seq, c4shft_seq,
+        dshft_seq, rshft_seq, m_seq
+    ):
+        alpha_seq, h_seq, C1_seq, C2_seq, C4_seq = \
+            self(c1_seq, c2_seq, c4_seq, d_seq, r_seq)
+
+        # alpha_seq: [batch_size, seq_len]
+
+        # gamma_shft_seq: [batch_size, seq_len]
+        gamma_shft_seq = self.D(dshft_seq).squeeze()
+
+        logits = \
+            alpha_seq - \
+            gamma_shft_seq
+
+        return logits
+
     def train_model(
         self, train_loader, test_loader, num_epochs, opt, ckpt_path
     ):
@@ -107,24 +127,13 @@ class UserModel(Module):
                     c1shft_seq, c2shft_seq, c4shft_seq, \
                     dshft_seq, rshft_seq, m_seq = data
 
-                # rshft_seq: [batch_size, seq_len]
-                # m_seq: [batch_size, seq_len]
-
                 self.train()
-
-                alpha_seq, h_seq, C1_seq, C2_seq, C4_seq = \
-                    self(c1_seq, c2_seq, c4_seq, d_seq, r_seq)
-
-                # alpha_seq: [batch_size, seq_len]
-
-                # gamma_shft_seq: [batch_size, seq_len]
-                gamma_shft_seq = self.D(dshft_seq).squeeze()
+                logits = self.get_logits(*data)
 
                 opt.zero_grad()
                 loss = binary_cross_entropy_with_logits(
                     torch.masked_select(
-                        alpha_seq -
-                        gamma_shft_seq, m_seq
+                        logits, m_seq
                     ),
                     torch.masked_select(rshft_seq.float(), m_seq)
                 )
@@ -140,32 +149,23 @@ class UserModel(Module):
                         dshft_seq, rshft_seq, m_seq = data
 
                     self.eval()
-
-                    alpha_seq, h_seq, C1_seq, C2_seq, C4_seq = \
-                        self(c1_seq, c2_seq, c4_seq, d_seq, r_seq)
-
-                    # alpha_seq: [batch_size, seq_len]
-
-                    # gamma_shft_seq: [batch_size, seq_len]
-                    gamma_shft_seq = self.D(dshft_seq).squeeze()
+                    logits = self.get_logits(*data)
 
                     # rshft_hat_seq: [batch_size, seq_len]
-                    rshft_hat_seq = torch.sigmoid(
-                        alpha_seq -
-                        gamma_shft_seq
-                    )
+                    rshft_hat_seq = torch.sigmoid(logits)
 
                     train_loss_mean = np.mean(train_loss_mean)
                     test_loss_mean = binary_cross_entropy_with_logits(
                         torch.masked_select(
-                            alpha_seq -
-                            gamma_shft_seq, m_seq
+                            logits, m_seq
                         ),
                         torch.masked_select(rshft_seq.float(), m_seq)
                     ).detach().cpu().numpy()
                     auc = metrics.roc_auc_score(
-                        y_true=rshft_seq.detach().cpu().numpy(),
-                        y_score=rshft_hat_seq.detach().cpu().numpy(),
+                        y_true=torch.masked_select(rshft_seq, m_seq)
+                        .detach().cpu().numpy(),
+                        y_score=torch.masked_select(rshft_hat_seq, m_seq)
+                        .detach().cpu().numpy(),
                     )
 
                     print(
