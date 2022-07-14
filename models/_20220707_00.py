@@ -177,6 +177,48 @@ class UserModel(Module):
 
         return alpha_seq, h_seq, C1_seq, C2_seq, C4_seq
 
+    def get_logits(
+        self,
+        c1_seq, c2_seq, c4_seq, d_seq, r_seq,
+        c1shft_seq, c2shft_seq, c4shft_seq,
+        dshft_seq, rshft_seq, m_seq
+    ):
+        batch_size = c2_seq.shape[0]
+        seq_len = c2_seq.shape[1]
+
+        # rshft_seq: [batch_size, seq_len]
+        # m_seq: [batch_size, seq_len]
+
+        alpha_seq, h_seq, C1_seq, C2_seq, C4_seq = \
+            self(c1_seq, c2_seq, c4_seq, d_seq, r_seq)
+
+        # alpha_seq: [batch_size, seq_len]
+
+        # beta1_shft_seq: [batch_size, seq_len]
+        # beta2_shft_seq: [batch_size, seq_len]
+        # beta4_shft_seq: [batch_size, seq_len]
+        beta1_shft_seq = torch.gather(
+            C1_seq, dim=-1, index=c1shft_seq.unsqueeze(-1)
+        ).reshape([batch_size, seq_len])
+        beta2_shft_seq = torch.gather(
+            C2_seq, dim=-1, index=c2shft_seq.unsqueeze(-1)
+        ).reshape([batch_size, seq_len])
+        beta4_shft_seq = torch.gather(
+            C4_seq, dim=-1, index=c4shft_seq.unsqueeze(-1)
+        ).reshape([batch_size, seq_len])
+
+        # gamma_shft_seq: [batch_size, seq_len]
+        gamma_shft_seq = self.D(dshft_seq).squeeze()
+
+        logits = \
+            alpha_seq + \
+            beta1_shft_seq + \
+            beta2_shft_seq + \
+            beta4_shft_seq - \
+            gamma_shft_seq
+
+        return logits
+
     def train_model(
         self, train_loader, test_loader, num_epochs, opt, ckpt_path
     ):
@@ -194,43 +236,13 @@ class UserModel(Module):
                     c1shft_seq, c2shft_seq, c4shft_seq, \
                     dshft_seq, rshft_seq, m_seq = data
 
-                batch_size = c2_seq.shape[0]
-                seq_len = c2_seq.shape[1]
-
-                # rshft_seq: [batch_size, seq_len]
-                # m_seq: [batch_size, seq_len]
-
                 self.train()
-
-                alpha_seq, h_seq, C1_seq, C2_seq, C4_seq = \
-                    self(c1_seq, c2_seq, c4_seq, d_seq, r_seq)
-
-                # alpha_seq: [batch_size, seq_len]
-
-                # beta1_shft_seq: [batch_size, seq_len]
-                # beta2_shft_seq: [batch_size, seq_len]
-                # beta4_shft_seq: [batch_size, seq_len]
-                beta1_shft_seq = torch.gather(
-                    C1_seq, dim=-1, index=c1shft_seq.unsqueeze(-1)
-                ).reshape([batch_size, seq_len])
-                beta2_shft_seq = torch.gather(
-                    C2_seq, dim=-1, index=c2shft_seq.unsqueeze(-1)
-                ).reshape([batch_size, seq_len])
-                beta4_shft_seq = torch.gather(
-                    C4_seq, dim=-1, index=c4shft_seq.unsqueeze(-1)
-                ).reshape([batch_size, seq_len])
-
-                # gamma_shft_seq: [batch_size, seq_len]
-                gamma_shft_seq = self.D(dshft_seq).squeeze()
+                logits = self.get_logits(*data)
 
                 opt.zero_grad()
                 loss = binary_cross_entropy_with_logits(
                     torch.masked_select(
-                        alpha_seq +
-                        beta1_shft_seq +
-                        beta2_shft_seq +
-                        beta4_shft_seq -
-                        gamma_shft_seq, m_seq
+                        logits, m_seq
                     ),
                     torch.masked_select(rshft_seq.float(), m_seq)
                 )
@@ -245,49 +257,16 @@ class UserModel(Module):
                         c1shft_seq, c2shft_seq, c4shft_seq, \
                         dshft_seq, rshft_seq, m_seq = data
 
-                    batch_size = c2_seq.shape[0]
-                    seq_len = c2_seq.shape[1]
-
                     self.eval()
-
-                    alpha_seq, h_seq, C1_seq, C2_seq, C4_seq = \
-                        self(c1_seq, c2_seq, c4_seq, d_seq, r_seq)
-
-                    # alpha_seq: [batch_size, seq_len]
-
-                    # beta1_shft_seq: [batch_size, seq_len]
-                    # beta2_shft_seq: [batch_size, seq_len]
-                    # beta4_shft_seq: [batch_size, seq_len]
-                    beta1_shft_seq = torch.gather(
-                        C1_seq, dim=-1, index=c1shft_seq.unsqueeze(-1)
-                    ).reshape([batch_size, seq_len])
-                    beta2_shft_seq = torch.gather(
-                        C2_seq, dim=-1, index=c2shft_seq.unsqueeze(-1)
-                    ).reshape([batch_size, seq_len])
-                    beta4_shft_seq = torch.gather(
-                        C4_seq, dim=-1, index=c4shft_seq.unsqueeze(-1)
-                    ).reshape([batch_size, seq_len])
-
-                    # gamma_shft_seq: [batch_size, seq_len]
-                    gamma_shft_seq = self.D(dshft_seq).squeeze()
+                    logits = self.get_logits(*data)
 
                     # rshft_hat_seq: [batch_size, seq_len]
-                    rshft_hat_seq = torch.sigmoid(
-                        alpha_seq +
-                        beta1_shft_seq +
-                        beta2_shft_seq +
-                        beta4_shft_seq -
-                        gamma_shft_seq
-                    )
+                    rshft_hat_seq = torch.sigmoid(logits)
 
                     train_loss_mean = np.mean(train_loss_mean)
                     test_loss_mean = binary_cross_entropy_with_logits(
                         torch.masked_select(
-                            alpha_seq +
-                            beta1_shft_seq +
-                            beta2_shft_seq +
-                            beta4_shft_seq -
-                            gamma_shft_seq, m_seq
+                            logits, m_seq
                         ),
                         torch.masked_select(rshft_seq.float(), m_seq)
                     ).detach().cpu().numpy()
