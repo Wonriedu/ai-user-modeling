@@ -200,7 +200,6 @@ class UserModel(Module):
         seq_len = c2_seq.shape[1]
         max_num_c3_tags = c3_seq.shape[-1]
 
-        # c1_seq: [batch_size, seq_len]
         # c2_seq: [batch_size, seq_len]
         # c3_seq: [batch_size, seq_len, max_num_c3_tags]
         # rshft_seq: [batch_size, seq_len]
