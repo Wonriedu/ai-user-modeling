@@ -87,6 +87,10 @@ class PuljaDataLoader(Dataset):
         self.d2idx = {d: i for i, d in enumerate(self.d_list)}
         self.num_d = self.d_list.shape[0]
 
+        self.c22c3_list = self.tb_problems[["category2", "category3"]]\
+            .groupby("category2")["category3"]\
+            .apply(set).apply(list).apply(sorted).to_dict()
+
         self.c32c4_list = self.tb_problems[["category3", "category4"]]\
             .groupby("category3")["category4"]\
             .apply(set).apply(list).apply(sorted).to_dict()
@@ -97,8 +101,7 @@ class PuljaDataLoader(Dataset):
             with open(
                 os.path.join(self.dataset_dir, "dataset.pkl"), "rb"
             ) as f:
-                self.c2_seqs, self.c3_seqs, self.d_seqs, \
-                    self.r_seqs = \
+                self.c3_seqs, self.d_seqs, self.r_seqs = \
                     pickle.load(f)
         else:
             self.preprocess()
@@ -108,7 +111,6 @@ class PuljaDataLoader(Dataset):
             ) as f:
                 pickle.dump(
                     (
-                        self.c2_seqs,
                         self.c3_seqs,
                         self.d_seqs,
                         self.r_seqs
@@ -119,14 +121,12 @@ class PuljaDataLoader(Dataset):
         self.len = len(self.r_seqs)
 
     def __getitem__(self, idx):
-        return self.c2_seqs[idx], self.c3_seqs[idx], \
-            self.d_seqs[idx], self.r_seqs[idx]
+        return self.c3_seqs[idx], self.d_seqs[idx], self.r_seqs[idx]
 
     def __len__(self):
         return self.len
 
     def preprocess(self):
-        self.c2_seqs = []
         self.c3_seqs = []
         self.d_seqs = []
         self.r_seqs = []
@@ -134,9 +134,6 @@ class PuljaDataLoader(Dataset):
         for u in self.u_list:
             df_u = self.df[self.df["userSeq"] == u]
 
-            c2_seq = np.array(
-                [self.c22idx[c2] for c2 in df_u["category2"].values]
-            )
             c3_seq = np.array(
                 [self.c32idx[c3] for c3 in df_u["category3"].values]
             )
@@ -153,16 +150,13 @@ class PuljaDataLoader(Dataset):
             r_seq = (df_u["isCorrect"].values == "Y").astype(int)
             r_seq = self.get_response(r_seq, TR_seq)
 
-            self.c2_seqs.append(c2_seq)
             self.c3_seqs.append(c3_seq)
             self.d_seqs.append(d_seq)
             self.r_seqs.append(r_seq)
 
         if self.seq_len:
-            self.c2_seqs, self.c3_seqs, self.d_seqs, \
-                self.r_seqs = \
+            self.c3_seqs, self.d_seqs, self.r_seqs = \
                 match_seq_len(
-                    self.c2_seqs,
                     self.c3_seqs,
                     self.d_seqs,
                     self.r_seqs,
