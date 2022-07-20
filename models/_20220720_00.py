@@ -47,7 +47,7 @@ class UserModel(Module):
 
     def forward(
         self, c3_seq, d_seq, r_seq,
-        h_0=None, C2_0=None, C3_0=None
+        h_0=None, C3_0=None
     ):
         '''
             Args:
@@ -152,7 +152,7 @@ class UserModel(Module):
 
         c3_logits = \
             alpha_seq + \
-            beta3_shft_seq + \
+            beta3_shft_seq - \
             gamma_shft_seq
 
         return c3_logits
