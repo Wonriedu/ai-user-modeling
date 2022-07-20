@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 
 from data_loaders.pulja_data_loader_02 import PuljaDataLoader
-from models._20220719_00 import UserModel
+from models._20220719_01 import UserModel
 from models.utils_02 import collate_fn
 
 
