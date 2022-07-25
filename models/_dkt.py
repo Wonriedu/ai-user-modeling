@@ -9,43 +9,43 @@ from sklearn import metrics
 
 
 class UserModel(Module):
-    def __init__(self, num_c1, num_c2, num_d, dim_v):
+    def __init__(self, num_c1, num_c2, num_c3, num_d, dim_v):
         super().__init__()
 
         self.num_c1 = num_c1
         self.num_c2 = num_c2
+        self.num_c3 = num_c3
         self.num_d = num_d
 
         self.dim_v = dim_v
 
-        self.X = Embedding(self.num_c2 * self.num_d, self.dim_v)
+        self.X = Embedding(self.num_c3 * self.num_d, self.dim_v)
 
         self.v_r = Parameter(torch.Tensor(self.dim_v))
 
         self.gru = GRU(self.dim_v * 2, self.dim_v, batch_first=True)
-        self.out_layer = Linear(self.dim_v, self.num_c2 * self.num_d)
+        self.out_layer = Linear(self.dim_v, self.num_c3 * self.num_d)
         self.dropout_layer = Dropout()
 
     def forward(
-        self, c_seq, d_seq, r_seq, h_0=None
+        self, c3_seq, d_seq, r_seq, h_0=None
     ):
         '''
             Args:
-                c_seq: [batch_size, seq_len]
+                c3_seq: [batch_size, seq_len]
                 d_seq: [batch_size, seq_len]
                 r_seq: [batch_size, seq_len]
                 h_0: [batch_size, dim_v]
-                C_0: [batch_size, num_c, 1]
 
             Returns:
                 alpha_seq: [batch_size, seq_len]
                 h_seq: [batch_size, seq_len, dim_v]
         '''
-        batch_size = c_seq.shape[0]
-        seq_len = c_seq.shape[1]
+        batch_size = c3_seq.shape[0]
+        seq_len = c3_seq.shape[1]
 
         # v_x_seq, v_r_seq: [batch_size, seq_len, dim_v]
-        x_seq = c_seq + self.num_c2 * d_seq
+        x_seq = c3_seq + self.num_c3 * d_seq
         v_x_seq = self.X(x_seq)
         v_r_seq = r_seq.unsqueeze(-1) * self.v_r
 
@@ -60,7 +60,7 @@ class UserModel(Module):
                 torch.cat([v_x_seq, v_r_seq], dim=-1)
             )
 
-        # alpha_seq: [batch_size, seq_len, num_c2, num_d]
+        # alpha_seq: [batch_size, seq_len, num_c3, num_d]
         alpha_seq = self.out_layer(h_seq).squeeze()
         alpha_seq = torch.reshape(
             alpha_seq, shape=[batch_size, seq_len, self.num_c2, self.num_d]
@@ -82,8 +82,9 @@ class UserModel(Module):
             train_loss_mean = []
 
             for data in train_loader:
-                c1_seq, c2_seq, d_seq, r_seq, \
-                    c1shft_seq, c2shft_seq, dshft_seq, rshft_seq, m_seq = data
+                c3_seq, d_seq, r_seq, \
+                    c3shft_seq, dshft_seq, rshft_seq, \
+                    m_seq = data
 
                 # rshft_seq: [batch_size, seq_len]
                 # m_seq: [batch_size, seq_len]
@@ -91,12 +92,12 @@ class UserModel(Module):
                 self.train()
 
                 alpha_seq, h_seq = \
-                    self(c2_seq, d_seq, r_seq)
+                    self(c3_seq, d_seq, r_seq)
 
-                # alpha_seq: [batch_size, seq_len, num_c2, num_d]
+                # alpha_seq: [batch_size, seq_len, num_c3, num_d]
 
-                # cshft_one_hot_seq: [batch_size, seq_len, num_c2, 1]
-                cshft_one_hot_seq = one_hot(c2shft_seq, self.num_c2)\
+                # cshft_one_hot_seq: [batch_size, seq_len, num_c3, 1]
+                cshft_one_hot_seq = one_hot(c3shft_seq, self.num_c3)\
                     .unsqueeze(-1).float()
 
                 # dshft_one_hot_seq: [batch_size, seq_len, 1, num_d]
@@ -104,7 +105,7 @@ class UserModel(Module):
                     .unsqueeze(-2).float()
 
                 # xshft_one_hot_seq:
-                # [batch_size, seq_len, num_c2, num_d]
+                # [batch_size, seq_len, num_c3, num_d]
                 xshft_one_hot_seq = \
                     cshft_one_hot_seq * dshft_one_hot_seq
 
@@ -112,11 +113,6 @@ class UserModel(Module):
                 alpha_shft_seq = \
                     (alpha_seq * xshft_one_hot_seq)\
                     .sum(-1).sum(-1)
-
-                # rshft_hat_seq: [batch_size, seq_len]
-                # rshft_hat_seq = torch.sigmoid(
-                #     alpha_shft_seq
-                # )
 
                 opt.zero_grad()
                 loss = binary_cross_entropy_with_logits(
@@ -130,9 +126,9 @@ class UserModel(Module):
 
             with torch.no_grad():
                 for data in test_loader:
-                    c1_seq, c2_seq, d_seq, r_seq, \
-                        c1shft_seq, c2shft_seq, dshft_seq, rshft_seq, m_seq = \
-                        data
+                    c3_seq, d_seq, r_seq, \
+                        c3shft_seq, dshft_seq, rshft_seq, \
+                        m_seq = data
 
                     # rshft_seq: [batch_size, seq_len]
                     # m_seq: [batch_size, seq_len]
@@ -140,12 +136,12 @@ class UserModel(Module):
                     self.eval()
 
                     alpha_seq, h_seq = \
-                        self(c2_seq, d_seq, r_seq)
+                        self(c3_seq, d_seq, r_seq)
 
-                    # alpha_seq: [batch_size, seq_len, num_c2, num_d]
+                    # alpha_seq: [batch_size, seq_len, num_c3, num_d]
 
-                    # cshft_one_hot_seq: [batch_size, seq_len, num_c2, 1]
-                    cshft_one_hot_seq = one_hot(c2shft_seq, self.num_c2)\
+                    # cshft_one_hot_seq: [batch_size, seq_len, num_c3, 1]
+                    cshft_one_hot_seq = one_hot(c3shft_seq, self.num_c3)\
                         .unsqueeze(-1).float()
 
                     # dshft_one_hot_seq: [batch_size, seq_len, 1, num_d]
@@ -153,7 +149,7 @@ class UserModel(Module):
                         .unsqueeze(-2).float()
 
                     # xshft_one_hot_seq:
-                    # [batch_size, seq_len, num_c2, num_d]
+                    # [batch_size, seq_len, num_c3, num_d]
                     xshft_one_hot_seq = \
                         cshft_one_hot_seq * dshft_one_hot_seq
 
@@ -182,7 +178,6 @@ class UserModel(Module):
                         .format(i, train_loss_mean, auc)
                     )
 
-                    # if test_loss_mean < min_test_loss_mean:
                     if auc > max_auc:
                         torch.save(
                             self.state_dict(),
@@ -190,7 +185,6 @@ class UserModel(Module):
                                 ckpt_path, "model_max.ckpt"
                             )
                         )
-                        # min_test_loss_mean = test_loss_mean
                         max_auc = auc
 
                     train_loss_means.append(train_loss_mean)
