@@ -117,7 +117,7 @@ class UserModel(Module):
                 opt.zero_grad()
                 loss = binary_cross_entropy_with_logits(
                     torch.masked_select(alpha_shft_seq, m_seq),
-                    torch.masked_select(rshft_seq, m_seq)
+                    torch.masked_select(rshft_seq.float(), m_seq)
                 )
                 loss.backward()
                 opt.step()
@@ -166,7 +166,7 @@ class UserModel(Module):
                     train_loss_mean = np.mean(train_loss_mean)
                     test_loss_mean = binary_cross_entropy_with_logits(
                         torch.masked_select(alpha_shft_seq, m_seq),
-                        torch.masked_select(rshft_seq, m_seq)
+                        torch.masked_select(rshft_seq.float(), m_seq)
                     ).detach().cpu().numpy()
                     auc = metrics.roc_auc_score(
                         y_true=rshft_seq.detach().cpu().numpy(),
