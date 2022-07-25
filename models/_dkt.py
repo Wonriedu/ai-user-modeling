@@ -63,7 +63,7 @@ class UserModel(Module):
         # alpha_seq: [batch_size, seq_len, num_c3, num_d]
         alpha_seq = self.out_layer(h_seq).squeeze()
         alpha_seq = torch.reshape(
-            alpha_seq, shape=[batch_size, seq_len, self.num_c2, self.num_d]
+            alpha_seq, shape=[batch_size, seq_len, self.num_c3, self.num_d]
         )
 
         return alpha_seq, h_seq
