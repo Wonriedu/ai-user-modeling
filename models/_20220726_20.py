@@ -33,7 +33,7 @@ class UserModel(Module):
             Linear(self.dim_v, self.dim_v),
             ReLU(),
             Dropout(),
-            Linear(self.dim_v, self.num_c3),
+            Linear(self.dim_v, 1),
             Dropout(),
         )
 
@@ -75,9 +75,9 @@ class UserModel(Module):
                 torch.cat([v_c3_seq, v_d_seq, v_r_seq], dim=-1)
             )
 
-        # u_c3_seq: [batch_size, seq_len, num_c3]
-        u_c3_seq = self.linear_1(h_seq).squeeze()
-        u_c3_seq = torch.reshape(u_c3_seq, [batch_size, seq_len, self.num_c3])
+        # new_c3_seq: [batch_size, seq_len, 1]
+        new_c3_seq = self.linear_1(h_seq).squeeze()
+        new_c3_seq = torch.reshape(new_c3_seq, [batch_size, seq_len, 1])
 
         # C3: [batch_size, num_c3]
         if C3_0 is not None:
@@ -86,11 +86,19 @@ class UserModel(Module):
             C3 = torch.zeros([batch_size, self.num_c3])
         C3_seq = []
 
-        # c3_one_hot_seq: [batch_size, seq_len, num_c3]
-        c3_one_hot_seq = one_hot(c3_seq, self.num_c3)
+        for c3, new_c3 in zip(c3_seq, new_c3_seq.permute(1, 0, 2)):
+            # c3: [batch_size]
+            # new_c3: [batch_size, 1]
+
+            # c3_one_hot: [batch_size, num_c3]
+            c3_one_hot = one_hot(c3, self.num_c3)
+
+            C3 = C3 * (1 - c3_one_hot) + new_c3 * c3_one_hot
+
+            C3_seq.append(C3)
 
         # C3_seq: [batch_size, seq_len, num_c3]
-        C3_seq = C3.unsqueeze(1) + (u_c3_seq * c3_one_hot_seq).cumsum(1)
+        C3_seq = torch.stack(C3_seq, dim=1)
 
         # alpha_seq: [batch_size, seq_len]
         alpha_seq = C3_seq.mean(-1)
