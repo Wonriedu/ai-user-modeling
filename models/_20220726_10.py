@@ -77,7 +77,7 @@ class UserModel(Module):
 
         # u_c3_seq: [batch_size, seq_len, num_c3]
         u_c3_seq = self.linear_1(h_seq).squeeze()
-        u_c3_seq = torch.reshape(u_c3_seq, [batch_size, seq_len, self.dim_v])
+        u_c3_seq = torch.reshape(u_c3_seq, [batch_size, seq_len, self.num_c3])
 
         # C3: [batch_size, num_c3]
         if C3_0 is not None:
