@@ -86,16 +86,15 @@ class UserModel(Module):
             C3 = torch.zeros([batch_size, self.num_c3])
         C3_seq = []
 
-        for c3, new_c3 in zip(c3_seq, new_c3_seq.permute(1, 0, 2)):
+        for c3, new_c3 in zip(
+            c3_seq.permute(1, 0), new_c3_seq.permute(1, 0, 2)
+        ):
             # c3: [batch_size]
             # new_c3: [batch_size, 1]
 
             # c3_one_hot: [batch_size, num_c3]
             c3_one_hot = one_hot(c3, self.num_c3)
 
-            print(C3.shape)
-            print(c3_one_hot.shape)
-            print(new_c3.shape)
             C3 = C3 * (1 - c3_one_hot) + new_c3 * c3_one_hot
 
             C3_seq.append(C3)
