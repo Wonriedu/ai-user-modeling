@@ -93,6 +93,9 @@ class UserModel(Module):
             # c3_one_hot: [batch_size, num_c3]
             c3_one_hot = one_hot(c3, self.num_c3)
 
+            print(C3.shape)
+            print(c3_one_hot.shape)
+            print(new_c3.shape)
             C3 = C3 * (1 - c3_one_hot) + new_c3 * c3_one_hot
 
             C3_seq.append(C3)
