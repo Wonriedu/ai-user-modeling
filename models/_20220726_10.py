@@ -90,7 +90,8 @@ class UserModel(Module):
         c3_one_hot_seq = one_hot(c3_seq, self.num_c3)
 
         print(C3.shape)
-        print((u_c3_seq * c3_one_hot_seq).cumsum(1).shape)
+        print(u_c3_seq.shape)
+        print(c3_one_hot_seq.shape)
 
         # C3_seq: [batch_size, seq_len, num_c3]
         C3_seq = C3.unsqueeze(1) + (u_c3_seq * c3_one_hot_seq).cumsum(1)
