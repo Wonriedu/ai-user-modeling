@@ -111,12 +111,12 @@ class UserModel(Module):
             alpha_new = self.linear_1(h).reshape([batch_size])
             alpha = \
                 (r == 1) * (
-                    (alpha - gamma >= 0) * alpha_new +
-                    (alpha - gamma < 0) * alpha
-                ) + \
-                (r == 0) * (
                     (alpha - gamma >= 0) * alpha +
                     (alpha - gamma < 0) * alpha_new
+                ) + \
+                (r == 0) * (
+                    (alpha - gamma >= 0) * alpha_new +
+                    (alpha - gamma < 0) * alpha
                 )
 
             alpha_seq.append(alpha)
