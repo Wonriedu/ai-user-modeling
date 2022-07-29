@@ -77,6 +77,7 @@ class UserModel(Module):
                 h_0.unsqueeze(0)
             )
         else:
+            h_0 = torch.zeros([batch_size, self.dim_v])
             h_seq, _ = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1))
 
         # alpha: [batch_size]
