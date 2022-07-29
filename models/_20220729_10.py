@@ -111,23 +111,25 @@ class UserModel(Module):
             # c3: [batch_size]
             # v_d, v_r: [batch_size, dim_v]
 
-            # alpha_new: [batch_size]
             gamma = gamma.reshape([batch_size])
+            weight = torch.sigmoid(alpha - gamma)
+
+            # alpha_new: [batch_size]
             alpha_new = self.linear_1(h).reshape([batch_size])
             alpha = \
                 (r == 1) * (
-                    (alpha >= gamma) * alpha +
-                    (alpha < gamma) * (
+                    weight * alpha +
+                    (1 - weight) * (
                         (alpha_new >= alpha) * alpha_new +
                         (alpha_new < alpha) * alpha
                     )
                 ) + \
                 (r == 0) * (
-                    (alpha >= gamma) * (
+                    (weight) * (
                         (alpha_new >= alpha) * alpha +
                         (alpha_new < alpha) * alpha_new
                     ) +
-                    (alpha < gamma) * alpha
+                    (1 - weight) * alpha
                 )
 
             alpha_seq.append(alpha)
