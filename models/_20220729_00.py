@@ -85,7 +85,7 @@ class UserModel(Module):
         h_seq = []
 
         # alpha: [batch_size]
-        alpha = self.linear_2(h).reshape([batch_size])
+        alpha = self.linear_1(h).reshape([batch_size])
         alpha_seq = []
 
         # C3: [batch_size, num_c3]
