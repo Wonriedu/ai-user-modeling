@@ -20,8 +20,6 @@ class UserModel(Module):
 
         self.dim_v = dim_v
 
-        self.v_u = Parameter(torch.Tensor(self.dim_v))
-
         self.v_c3 = Parameter(torch.Tensor(self.dim_v))
 
         self.D = Embedding(self.num_d, 1)
@@ -31,7 +29,7 @@ class UserModel(Module):
         self.R = Embedding(2, self.dim_v)
 
         self.linear_1 = Sequential(
-            Linear(self.dim_v * 3, self.dim_v),
+            Linear(self.dim_v, self.dim_v),
             ReLU(),
             Dropout(),
             Linear(self.dim_v, 1),
@@ -42,24 +40,33 @@ class UserModel(Module):
             Linear(self.dim_v * 3, self.dim_v),
             ReLU(),
             Dropout(),
+            Linear(self.dim_v, self.dim_v),
+            Dropout(),
+        )
+
+        self.linear_3 = Sequential(
+            Linear(self.dim_v * 3, self.dim_v),
+            ReLU(),
+            Dropout(),
             Linear(self.dim_v, 1),
             Dropout(),
         )
 
     def forward(
         self, c3_seq, d_seq, r_seq,
-        alpha_0=None, C3_0=None
+        h_0=None, C3_0=None
     ):
         '''
             Args:
                 c3_seq: [batch_size, seq_len]
                 d_seq: [batch_size, seq_len]
                 r_seq: [batch_size, seq_len]
-                alpha_0: [batch_size]
+                h_0: [batch_size, dim_v]
                 C3_0: [batch_size, num_c3]
 
             Returns:
                 alpha_seq: [batch_size, seq_len]
+                h_seq: [batch_size, seq_len, dim_v]
                 C3_seq: [batch_size, seq_len, num_c3]
         '''
         batch_size = c3_seq.shape[0]
@@ -70,14 +77,18 @@ class UserModel(Module):
         v_d_seq = gamma_seq * self.v_d
         v_r_seq = self.R(r_seq)
 
-        # alpha: [batch_size]
-        if alpha_0 is not None:
-            alpha = torch.clone(alpha_0)
+        # h: [batch_size, dim_v]
+        if h_0 is not None:
+            h = torch.clone(h_0)
         else:
-            alpha = torch.zeros([batch_size])
+            h = torch.zeros([batch_size, self.dim_v])
+        h_seq = []
+
+        # alpha: [batch_size]
+        alpha = self.linear_2(h).reshape([batch_size])
         alpha_seq = []
 
-        # C3: [batch_size, num_c4]
+        # C3: [batch_size, num_c3]
         if C3_0 is not None:
             C3 = torch.clone(C3_0)
         else:
@@ -96,14 +107,13 @@ class UserModel(Module):
             # c3: [batch_size]
             # v_d, v_r: [batch_size, dim_v]
 
-            # v_u: [batch_size, dim_v]
-            v_u = alpha.reshape([batch_size, 1]) * self.v_u
+            # h: [batch_size, dim_v]
+            h = self.linear_2(torch.cat([h, v_d, v_r], dim=-1))
+            h_seq.append(h)
 
             # alpha_new: [batch_size]
             gamma = gamma.reshape([batch_size])
-
-            alpha_new = self.linear_1(torch.cat([v_u, v_d, v_r], dim=-1))\
-                .reshape([batch_size])
+            alpha_new = self.linear_1(h).reshape([batch_size])
             alpha = \
                 (r == 1) * (
                     (alpha >= gamma) * alpha +
@@ -131,7 +141,7 @@ class UserModel(Module):
             v_c3 = torch.reshape(v_c3, [batch_size, self.dim_v])
 
             # new_c: [batch_size]
-            new_c3 = self.linear_2(
+            new_c3 = self.linear_3(
                 torch.cat([v_c3, v_d, v_r], dim=-1)
             ).reshape([batch_size])
 
@@ -143,13 +153,16 @@ class UserModel(Module):
 
             C3_seq.append(C3)
 
+        # h_seq: [batch_size, seq_len, dim_v]
+        h_seq = torch.stack(h_seq, dim=1)
+
         # C3_seq: [batch_size, seq_len, num_c3]
         C3_seq = torch.stack(C3_seq, dim=1)
 
         # alpha_seq: [batch_size, seq_len]
         alpha_seq = torch.stack(alpha_seq, dim=1)
 
-        return alpha_seq, C3_seq
+        return alpha_seq, h_seq, C3_seq
 
     def get_logits(
         self,
@@ -163,7 +176,7 @@ class UserModel(Module):
         # rshft_seq: [batch_size, seq_len]
         # m_seq: [batch_size, seq_len]
 
-        alpha_seq, C3_seq = \
+        alpha_seq, h_seq, C3_seq = \
             self(c3_seq, d_seq, r_seq)
 
         # alpha_seq: [batch_size, seq_len]
