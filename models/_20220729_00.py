@@ -3,7 +3,7 @@ import os
 import numpy as np
 import torch
 
-from torch.nn import Module, Embedding, Parameter, Sequential, Linear, \
+from torch.nn import Module, Embedding, Parameter, GRU, Sequential, Linear, \
     ReLU, Dropout
 from torch.nn.functional import one_hot, binary_cross_entropy_with_logits
 from sklearn import metrics
@@ -28,6 +28,7 @@ class UserModel(Module):
 
         self.R = Embedding(2, self.dim_v)
 
+        self.gru = GRU(self.dim_v * 2, self.dim_v, batch_first=True)
         self.linear_1 = Sequential(
             Linear(self.dim_v, self.dim_v),
             ReLU(),
@@ -37,14 +38,6 @@ class UserModel(Module):
         )
 
         self.linear_2 = Sequential(
-            Linear(self.dim_v * 3, self.dim_v),
-            ReLU(),
-            Dropout(),
-            Linear(self.dim_v, self.dim_v),
-            Dropout(),
-        )
-
-        self.linear_3 = Sequential(
             Linear(self.dim_v * 3, self.dim_v),
             ReLU(),
             Dropout(),
@@ -77,39 +70,39 @@ class UserModel(Module):
         v_d_seq = gamma_seq * self.v_d
         v_r_seq = self.R(r_seq)
 
-        # h: [batch_size, dim_v]
+        # h_seq: [batch_size, seq_len, dim_v]
         if h_0 is not None:
-            h = torch.clone(h_0)
+            h_seq, _ = self.gru(
+                torch.cat([v_d_seq, v_r_seq], dim=-1),
+                h_0.unsqueeze(0)
+            )
         else:
-            h = torch.zeros([batch_size, self.dim_v])
-        h_seq = []
+            h_seq, _ = self.gru(torch.cat([v_d_seq, v_r_seq], dim=-1))
 
         # alpha: [batch_size]
-        alpha = self.linear_1(h).reshape([batch_size])
+        alpha = self.linear_1(h_0).reshape([batch_size])
         alpha_seq = []
 
-        # C3: [batch_size, num_c3]
+        # C3: [batch_size, num_c4]
         if C3_0 is not None:
             C3 = torch.clone(C3_0)
         else:
             C3 = torch.zeros([batch_size, self.num_c3])
         C3_seq = []
 
-        for gamma, r, c3, v_d, v_r in zip(
+        for h, gamma, r, c3, v_d, v_r in zip(
+            h_seq.permute(1, 0, 2),
             gamma_seq.permute(1, 0, 2),
             r_seq.permute(1, 0,),
             c3_seq.permute(1, 0),
             v_d_seq.permute(1, 0, 2),
             v_r_seq.permute(1, 0, 2)
         ):
+            # h: [batch_size, dim_v]
             # gamma: [batch_size, 1]
             # r: [batch_size]
             # c3: [batch_size]
             # v_d, v_r: [batch_size, dim_v]
-
-            # h: [batch_size, dim_v]
-            h = self.linear_2(torch.cat([h, v_d, v_r], dim=-1))
-            h_seq.append(h)
 
             # alpha_new: [batch_size]
             gamma = gamma.reshape([batch_size])
@@ -141,7 +134,7 @@ class UserModel(Module):
             v_c3 = torch.reshape(v_c3, [batch_size, self.dim_v])
 
             # new_c: [batch_size]
-            new_c3 = self.linear_3(
+            new_c3 = self.linear_2(
                 torch.cat([v_c3, v_d, v_r], dim=-1)
             ).reshape([batch_size])
 
@@ -152,9 +145,6 @@ class UserModel(Module):
                 new_c3.unsqueeze(-1) * c3_one_hot
 
             C3_seq.append(C3)
-
-        # h_seq: [batch_size, seq_len, dim_v]
-        h_seq = torch.stack(h_seq, dim=1)
 
         # C3_seq: [batch_size, seq_len, num_c3]
         C3_seq = torch.stack(C3_seq, dim=1)
