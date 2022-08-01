@@ -20,6 +20,9 @@ class UserModel(Module):
 
         self.dim_v = dim_v
 
+        self.init_alpha = Parameter(torch.Tensor(1))
+        self.v_u = Parameter(torch.Tensor(self.dim_v))
+
         self.v_c3 = Parameter(torch.Tensor(self.dim_v))
 
         self.D = Embedding(self.num_d, 1)
@@ -30,7 +33,7 @@ class UserModel(Module):
 
         self.gru = GRU(self.dim_v * 2, self.dim_v, batch_first=True)
         self.linear_1 = Sequential(
-            Linear(self.dim_v, self.dim_v),
+            Linear(self.dim_v * 2, self.dim_v),
             ReLU(),
             Dropout(),
             Linear(self.dim_v, 1),
@@ -44,12 +47,6 @@ class UserModel(Module):
             Linear(self.dim_v, 1),
             Dropout(),
         )
-
-    def init_alpha(self, batch_size):
-        h_0 = torch.zeros([batch_size, self.dim_v])
-        alpha = self.linear_1(h_0).reshape([batch_size])
-
-        return alpha
 
     def forward(
         self, c3_seq, d_seq, r_seq,
@@ -91,10 +88,10 @@ class UserModel(Module):
         if alpha_0 is not None:
             alpha = torch.clone(alpha_0)
         else:
-            alpha = self.linear_1(h_0).reshape([batch_size])
+            alpha = self.init_alpha.repeat([batch_size])
         alpha_seq = []
 
-        # C3: [batch_size, num_c4]
+        # C3: [batch_size, num_c3]
         if C3_0 is not None:
             C3 = torch.clone(C3_0)
         else:
@@ -115,11 +112,16 @@ class UserModel(Module):
             # c3: [batch_size]
             # v_d, v_r: [batch_size, dim_v]
 
-            # alpha_new: [batch_size]
             gamma = gamma.reshape([batch_size])
-            alpha_new = self.linear_1(h).reshape([batch_size])
-            print("sssssssssss")
-            print(alpha_new)
+
+            # v_u: [batch_size, dim_v]
+            v_u = alpha.unsqueeze(-1) * self.v_u
+
+            # alpha_new: [batch_size]
+            alpha_new = self.linear_1(torch.cat([h, v_u], dim=-1))\
+                .reshape([batch_size])
+            # print("sssssssssss")
+            # print(alpha_new)
             alpha = \
                 (r == 1) * (
                     (alpha >= gamma) * alpha +
